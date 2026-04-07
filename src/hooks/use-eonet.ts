@@ -1,39 +1,42 @@
 import { useEffect } from "react"
 import { useEventStore } from "@/store/event-store"
-import type { EONETResponse } from "@/types"
 
-const EONET_API = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=50"
+const EONET_ENDPOINT = "/api/eonet/events"
+
+let cached: Promise<unknown[]> | null = null
+
+function fetchEvents(): Promise<unknown[]> {
+  if (cached) return cached
+
+  cached = (async () => {
+    const res = await fetch(EONET_ENDPOINT)
+    if (!res.ok) {
+      cached = null
+      throw new Error(`EONET API returned ${res.status}`)
+    }
+    const data = await res.json()
+    return data.events
+  })()
+
+  cached.catch(() => { cached = null })
+  return cached
+}
 
 export function useEONET() {
-  const { setEvents, setLoading, setError } = useEventStore()
+  const setEvents = useEventStore((s) => s.setEvents)
+  const setLoading = useEventStore((s) => s.setLoading)
+  const setError = useEventStore((s) => s.setError)
 
   useEffect(() => {
     let cancelled = false
-
-    async function fetchEvents() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const response = await fetch(EONET_API)
-        if (!response.ok) throw new Error(`EONET API returned ${response.status}`)
-
-        const data: EONETResponse = await response.json()
-        if (!cancelled) {
-          setEvents(data.events)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to fetch events")
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
+    setLoading(true)
+    setError(null)
 
     fetchEvents()
-    return () => {
-      cancelled = true
-    }
+      .then((events) => { if (!cancelled) setEvents(events as ReturnType<typeof useEventStore.getState>["events"]) })
+      .catch((err) => { if (!cancelled) setError(err.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
   }, [setEvents, setLoading, setError])
 }

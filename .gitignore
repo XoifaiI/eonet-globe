@@ -12,7 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,7 +22,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Project specific
 .env
 server/uploads/*
 !server/uploads/.gitkeep

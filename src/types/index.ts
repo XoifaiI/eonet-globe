@@ -36,5 +36,13 @@ export interface UserImage {
 export interface User {
   id: string
   username: string
+  email: string
+  picture: string
   token: string
+}
+
+export interface GoogleCredentialResponse {
+  credential: string
+  select_by: string
+  clientId: string
 }

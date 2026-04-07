@@ -15,4 +15,14 @@ export default defineConfig({
       "/api": "http://localhost:3001",
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("maplibre-gl")) return "maplibre"
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) return "vendor"
+        },
+      },
+    },
+  },
 })

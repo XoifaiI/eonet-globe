@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://eonet-globe-363055381330.europe-west1.run.app/sitemap.xml

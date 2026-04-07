@@ -1,13 +1,15 @@
 import { Router, type Request, type Response, type NextFunction } from "express"
-import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import jwt from "jsonwebtoken"
-import { v4 as uuid } from "uuid"
+import { createRemoteJWKSet, jwtVerify } from "jose"
 import { read, write } from "./db.js"
 
 interface StoredUser {
   id: string
-  username: string
-  passwordHash: string
+  email: string
+  name: string
+  picture: string
+  googleId: string
 }
 
 export interface AuthRequest extends Request {
@@ -16,88 +18,140 @@ export interface AuthRequest extends Request {
 }
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-dev-secret"
 
-function getUsers(): StoredUser[] {
+const JWT_SECRET: string = process.env.JWT_SECRET ?? ""
+if (JWT_SECRET.length < 32) {
+  throw new Error("JWT_SECRET must be set and at least 32 characters")
+}
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+if (!GOOGLE_CLIENT_ID) {
+  throw new Error("GOOGLE_CLIENT_ID must be set")
+}
+
+const JWT_ISSUER = "eonet-globe"
+const JWT_AUDIENCE = "eonet-globe-client"
+
+const googleJWKS = createRemoteJWKSet(
+  new URL("https://www.googleapis.com/oauth2/v3/certs")
+)
+
+async function getUsers(): Promise<StoredUser[]> {
   return read<StoredUser[]>("users", [])
 }
 
-function sanitizeUsername(input: string): string {
-  return input.trim().slice(0, 50)
+async function verifyGoogleJwt(credential: string): Promise<{
+  sub: string
+  email: string
+  name: string
+  picture: string
+}> {
+  const { payload } = await jwtVerify(credential, googleJWKS, {
+    issuer: ["accounts.google.com", "https://accounts.google.com"],
+    audience: GOOGLE_CLIENT_ID,
+    clockTolerance: 60,
+  })
+
+  if (!payload.sub || typeof payload.sub !== "string") {
+    throw new Error("Missing subject")
+  }
+
+  const email = payload.email as string | undefined
+  if (!email || typeof email !== "string") {
+    throw new Error("Missing email")
+  }
+
+  return {
+    sub: payload.sub,
+    email,
+    name: (payload.name as string) || email,
+    picture: (payload.picture as string) || "",
+  }
 }
 
-router.post("/register", async (req: Request, res: Response) => {
-  const { username, password } = req.body
+router.post("/google", async (req: Request, res: Response) => {
+  const { credential } = req.body
 
-  if (!username || !password || typeof username !== "string" || typeof password !== "string") {
-    res.status(400).json({ error: "Username and password are required" })
+  if (!credential || typeof credential !== "string") {
+    res.status(400).json({ error: "Missing Google credential" })
     return
   }
 
-  const cleanUsername = sanitizeUsername(username)
-  if (cleanUsername.length < 3) {
-    res.status(400).json({ error: "Username must be at least 3 characters" })
-    return
-  }
-
-  if (password.length < 6) {
-    res.status(400).json({ error: "Password must be at least 6 characters" })
-    return
-  }
-
-  const users = getUsers()
-  if (users.find((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
-    res.status(409).json({ error: "Username already exists" })
-    return
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12)
-  const user: StoredUser = { id: uuid(), username: cleanUsername, passwordHash }
-  users.push(user)
-  write("users", users)
-
-  const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, {
-    expiresIn: "7d",
-  })
-
-  res.json({ id: user.id, username: user.username, token })
-})
-
-router.post("/login", async (req: Request, res: Response) => {
-  const { username, password } = req.body
-
-  if (!username || !password || typeof username !== "string" || typeof password !== "string") {
-    res.status(400).json({ error: "Username and password are required" })
-    return
-  }
-
-  const users = getUsers()
-  const user = users.find((u) => u.username.toLowerCase() === username.trim().toLowerCase())
-
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    res.status(401).json({ error: "Invalid credentials" })
-    return
-  }
-
-  const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, {
-    expiresIn: "7d",
-  })
-
-  res.json({ id: user.id, username: user.username, token })
-})
-
-export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
-  const header = req.headers.authorization
-  if (!header?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Authentication required" })
+  if (credential.length > 4096) {
+    res.status(400).json({ error: "Credential too large" })
     return
   }
 
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET) as {
-      userId: string
-      username: string
+    const { sub: googleId, email, name, picture } = await verifyGoogleJwt(credential)
+
+    const users = await getUsers()
+    let user = users.find((u) => u.googleId === googleId)
+
+    if (!user) {
+      user = { id: crypto.randomUUID(), email, name, picture, googleId }
+      users.push(user)
+      await write("users", users)
+    } else {
+      user.name = name
+      user.picture = picture
+      user.email = email
+      await write("users", users)
     }
+
+    const jti = crypto.randomBytes(16).toString("hex")
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.name },
+      JWT_SECRET,
+      {
+        expiresIn: "7d",
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        jwtid: jti,
+        subject: user.id,
+      }
+    )
+
+    res.json({
+      id: user.id,
+      username: user.name,
+      email: user.email,
+      picture: user.picture,
+      token,
+    })
+  } catch (err) {
+    if (err instanceof Error) console.error("Google auth failed:", err.message)
+    res.status(401).json({ error: "Invalid Google credential" })
+  }
+})
+
+export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const header = req.headers.authorization
+  if (!header || !header.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Authentication required" })
+    return
+  }
+
+  const token = header.slice(7)
+  if (token.length > 2048) {
+    res.status(401).json({ error: "Token too large" })
+    return
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      algorithms: ["HS256"],
+      maxAge: "7d",
+    }) as unknown as { userId: string; username: string; sub: string }
+
+    if (!payload.userId || !payload.sub) {
+      res.status(401).json({ error: "Malformed token" })
+      return
+    }
+
     req.userId = payload.userId
     req.username = payload.username
     next()

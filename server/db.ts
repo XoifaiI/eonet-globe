@@ -1,26 +1,37 @@
-import fs from "fs"
-import path from "path"
+import { Storage } from "@google-cloud/storage"
 
-const DATA_DIR = path.join(import.meta.dirname, "data")
+const BUCKET_NAME = process.env.GCS_BUCKET || "eonet-globe-images"
 
-function ensureDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true })
+const storage = new Storage(
+  process.env.GCS_KEY_FILE
+    ? { keyFilename: process.env.GCS_KEY_FILE }
+    : undefined
+)
+
+const bucket = storage.bucket(BUCKET_NAME)
+const cache = new Map<string, { data: unknown; ts: number }>()
+const CACHE_TTL = 5000
+
+export async function read<T>(name: string, fallback: T): Promise<T> {
+  const cached = cache.get(name)
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data as T
+  }
+
+  try {
+    const [contents] = await bucket.file(`meta/${name}.json`).download()
+    const data = JSON.parse(contents.toString("utf-8")) as T
+    cache.set(name, { data, ts: Date.now() })
+    return data
+  } catch {
+    return fallback
   }
 }
 
-function filePath(name: string) {
-  return path.join(DATA_DIR, `${name}.json`)
-}
-
-export function read<T>(name: string, fallback: T): T {
-  ensureDir()
-  const fp = filePath(name)
-  if (!fs.existsSync(fp)) return fallback
-  return JSON.parse(fs.readFileSync(fp, "utf-8"))
-}
-
-export function write<T>(name: string, data: T): void {
-  ensureDir()
-  fs.writeFileSync(filePath(name), JSON.stringify(data, null, 2))
+export async function write<T>(name: string, data: T): Promise<void> {
+  cache.set(name, { data, ts: Date.now() })
+  await bucket.file(`meta/${name}.json`).save(
+    JSON.stringify(data),
+    { resumable: false, contentType: "application/json" }
+  )
 }
