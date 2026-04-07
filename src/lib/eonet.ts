@@ -59,19 +59,19 @@ export const CATEGORY_EMOJI: Record<string, string> = {
 }
 
 const CATEGORY_ILLUSTRATIONS: Record<string, string> = {
-  wildfires: "/wildfire.avif",
-  volcanoes: "/volcano.jpg",
-  severeStorms: "/storm.jpg",
-  floods: "/flood.jpg",
-  drought: "/drought.jpg",
-  earthquakes: "/earthquake.jpg",
-  landslides: "/landslide.jpg",
-  tempExtremes: "/global-warming-illustration.jpg",
-  dustHaze: "/dust.avif",
-  seaLakeIce: "/sealakeice.jpg",
-  snow: "/snow.jpg",
-  waterColor: "/dirtywater.jpg",
-  manmade: "/mandmade.jpg",
+  wildfires: "/wildfire.webp",
+  volcanoes: "/volcano.webp",
+  severeStorms: "/storm.webp",
+  floods: "/flood.webp",
+  drought: "/drought.webp",
+  earthquakes: "/earthquake.webp",
+  landslides: "/landslide.webp",
+  tempExtremes: "/global-warming-illustration.webp",
+  dustHaze: "/dust.webp",
+  seaLakeIce: "/sealakeice.webp",
+  snow: "/snow.webp",
+  waterColor: "/dirtywater.webp",
+  manmade: "/mandmade.webp",
 }
 
 export function getCategoryIllustration(event: EONETEvent): string | null {
