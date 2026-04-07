@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express"
+import crypto from "crypto"
 
 interface CachedResponse {
   data: unknown
+  etag: string
   fetchedAt: number
 }
 
@@ -55,7 +57,9 @@ async function refreshCache(): Promise<void> {
         }
       }
 
-      cache = { data: { events: merged }, fetchedAt: Date.now() }
+      const data = { events: merged }
+      const etag = `"${crypto.createHash("sha256").update(JSON.stringify(data)).digest("hex")}"`
+      cache = { data, etag, fetchedAt: Date.now() }
     } finally {
       fetchPromise = null
     }

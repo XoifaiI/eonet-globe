@@ -1,4 +1,5 @@
 import { Storage } from "@google-cloud/storage"
+import crypto from "crypto"
 import zstd from "zstd-napi"
 import type { ProcessedImage } from "./image-pipeline.js"
 
@@ -74,13 +75,36 @@ export async function promoteFromQuarantine(filename: string): Promise<void> {
   )
 }
 
+const IMAGE_CACHE_MAX = 200
+const imageCache = new Map<string, { buffer: Buffer; etag: string; accessedAt: number }>()
+
+function evictCache() {
+  if (imageCache.size <= IMAGE_CACHE_MAX) return
+  const entries = [...imageCache.entries()].sort((a, b) => a[1].accessedAt - b[1].accessedAt)
+  const toRemove = entries.slice(0, entries.length - IMAGE_CACHE_MAX)
+  for (const [key] of toRemove) imageCache.delete(key)
+}
+
 export async function downloadImage(
   filename: string,
   variant: "original" | "medium" | "thumbnail" = "medium"
-): Promise<Buffer> {
+): Promise<{ buffer: Buffer; etag: string }> {
+  const cacheKey = `${filename}:${variant}`
+  const cached = imageCache.get(cacheKey)
+  if (cached) {
+    cached.accessedAt = Date.now()
+    return { buffer: cached.buffer, etag: cached.etag }
+  }
+
   const gcsPath = `images/${filename}/${variant}.webp.zst`
   const [compressed] = await bucket.file(gcsPath).download()
-  return zstd.decompress(compressed)
+  const buffer = zstd.decompress(compressed)
+  const etag = `"${crypto.createHash("sha256").update(buffer).digest("hex")}"`
+
+  imageCache.set(cacheKey, { buffer, etag, accessedAt: Date.now() })
+  evictCache()
+
+  return { buffer, etag }
 }
 
 export async function getSignedUrl(

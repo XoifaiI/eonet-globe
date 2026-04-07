@@ -2,6 +2,11 @@ import { Router, type Response } from "express"
 import multer from "multer"
 import crypto from "crypto"
 import { read, write } from "./db.js"
+
+function jsonEtag(data: unknown): string {
+  const json = JSON.stringify(data)
+  return `"${crypto.createHash("sha256").update(json).digest("hex")}"`
+}
 import { requireAuth, type AuthRequest } from "./auth.js"
 import { uploadProcessedImage, promoteFromQuarantine, downloadImage, deleteImage } from "./storage.js"
 import { processImage, moderateImage } from "./image-pipeline.js"
@@ -110,7 +115,14 @@ router.get("/:eventId", async (req: AuthRequest, res: Response) => {
     .filter((r): r is ImageRecord => !!r && r.status === "approved")
     .map(publicRecord)
 
-  res.setHeader("Cache-Control", "public, max-age=30")
+  const etag = jsonEtag(images)
+  if (req.headers["if-none-match"] === etag) {
+    res.status(304).end()
+    return
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=60")
+  res.setHeader("ETag", etag)
   res.json(images)
 })
 
@@ -131,14 +143,20 @@ router.get("/file/:filename", async (req: AuthRequest, res: Response) => {
   const variant = (req.query.v === "thumb" ? "thumbnail" : req.query.v === "original" ? "original" : "medium") as "thumbnail" | "medium" | "original"
 
   try {
-    const buffer = await downloadImage(filename, variant)
+    const { buffer, etag } = await downloadImage(filename, variant)
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end()
+      return
+    }
 
     res.setHeader("Content-Type", "image/webp")
     res.setHeader("Content-Length", buffer.length)
+    res.setHeader("ETag", etag)
     res.setHeader("X-Content-Type-Options", "nosniff")
     res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'")
     res.setHeader("Content-Disposition", "inline")
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable")
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
     res.send(buffer)
   } catch {
     res.status(404).end()
