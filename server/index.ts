@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit"
 import authRouter from "./auth.js"
 import imagesRouter, { getExpiredImages, removeImageRecords } from "./images.js"
 import eonetRouter from "./eonet-cache.js"
+import wikiRouter from "./wiki.js"
 import { deleteImages } from "./storage.js"
 
 const app = express()
@@ -44,6 +45,7 @@ app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff")
   res.setHeader("X-Frame-Options", "DENY")
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
   next()
 })
 
@@ -73,14 +75,27 @@ const uploadLimiter = rateLimit({
 
 app.use("/api", apiLimiter)
 app.use("/api/auth", authLimiter)
+const wikiWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many wiki edits, try again in a minute" },
+})
+
 app.use("/api/images/:eventId", (req, _res, next) => {
   if (req.method === "POST") return uploadLimiter(req, _res, next)
+  next()
+})
+app.use("/api/wiki", (req, _res, next) => {
+  if (req.method === "POST" || req.method === "PUT") return wikiWriteLimiter(req, _res, next)
   next()
 })
 
 app.use("/api/auth", authRouter)
 app.use("/api/images", imagesRouter)
 app.use("/api/eonet", eonetRouter)
+app.use("/api/wiki", wikiRouter)
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() })
@@ -88,8 +103,20 @@ app.get("/api/health", (_req, res) => {
 
 if (IS_PROD) {
   const distPath = path.join(import.meta.dirname, "..", "dist")
-  app.use(express.static(distPath, { maxAge: "1y", immutable: true }))
+
+  app.use("/assets", express.static(path.join(distPath, "assets"), {
+    maxAge: "1y",
+    immutable: true,
+  }))
+
+  app.use(express.static(distPath, {
+    maxAge: 0,
+    index: false,
+  }))
+
   app.get("{*path}", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache")
+    res.setHeader("Content-Type", "text/html; charset=utf-8")
     res.sendFile(path.join(distPath, "index.html"))
   })
 }

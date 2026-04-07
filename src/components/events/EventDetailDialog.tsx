@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
+import WikiTab from "@/components/events/WikiTab"
 import { useEventStore } from "@/store/event-store"
 import { useAuthStore } from "@/store/auth-store"
 import {
@@ -44,6 +45,7 @@ import {
   Eye,
   Copy,
   Loader2,
+  FileText,
 } from "lucide-react"
 
 export default function EventDetailDialog() {
@@ -307,6 +309,10 @@ export default function EventDetailDialog() {
                     {images.length}
                   </Badge>
                 </TabsTrigger>
+                <TabsTrigger value="wiki" className="text-xs gap-1.5">
+                  <FileText className="h-3 w-3" />
+                  Wiki
+                </TabsTrigger>
                 <TabsTrigger value="sources" className="text-xs gap-1.5">
                   <ExternalLink className="h-3 w-3" />
                   Sources
@@ -417,6 +423,10 @@ export default function EventDetailDialog() {
                     )}
                   </ScrollArea>
                 )}
+              </TabsContent>
+
+              <TabsContent value="wiki" className="flex-1 overflow-hidden mt-3">
+                <WikiTab eventId={selectedEvent.id} />
               </TabsContent>
 
               <TabsContent value="sources" className="mt-3 pb-2">
