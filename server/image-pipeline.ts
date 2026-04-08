@@ -1,183 +1,217 @@
-import sharp from "sharp"
-import crypto from "crypto"
+import sharp from "sharp";
+import crypto from "crypto";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const MIN_FILE_SIZE = 1024
-const MAX_PIXEL_BUDGET = 25_000_000
-const MAX_DIMENSION = 8192
-const MIN_DIMENSION = 10
-const MAX_ASPECT_RATIO = 10
-const THUMBNAIL_SIZE = 200
-const MEDIUM_SIZE = 800
-const ORIGINAL_MAX = 2000
-const OUTPUT_QUALITY = 82
-const TARGET_DPI = 72
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MIN_FILE_SIZE = 1024;
+const MAX_PIXEL_BUDGET = 25_000_000;
+const MAX_DIMENSION = 8192;
+const MIN_DIMENSION = 10;
+const MAX_ASPECT_RATIO = 10;
+const THUMBNAIL_SIZE = 200;
+const MEDIUM_SIZE = 800;
+const ORIGINAL_MAX = 2000;
+const OUTPUT_QUALITY = 82;
 
 const MAGIC_BYTES: Array<{ type: string; bytes: number[]; offset: number }> = [
   { type: "jpeg", bytes: [0xff, 0xd8, 0xff], offset: 0 },
   { type: "png", bytes: [0x89, 0x50, 0x4e, 0x47], offset: 0 },
   { type: "webp", bytes: [0x57, 0x45, 0x42, 0x50], offset: 8 },
-]
+];
 
-const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"])
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
+const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export interface ProcessedImage {
-  original: Buffer
-  medium: Buffer
-  thumbnail: Buffer
-  width: number
-  height: number
-  format: string
-  filename: string
+  original: Buffer;
+  medium: Buffer;
+  thumbnail: Buffer;
+  width: number;
+  height: number;
+  format: string;
+  filename: string;
 }
 
 export interface ValidationResult {
-  valid: boolean
-  error?: string
+  valid: boolean;
+  error?: string;
 }
 
 export function validateExtension(filename: string): ValidationResult {
-  const lower = filename.toLowerCase()
+  const lower = filename.toLowerCase();
 
   if (lower.includes("\0")) {
-    return { valid: false, error: "Filename contains null bytes" }
+    return { valid: false, error: "Filename contains null bytes" };
   }
 
-  const parts = lower.split(".")
-  const ext = "." + (parts.pop() || "")
+  const parts = lower.split(".");
+  const ext = "." + (parts.pop() || "");
 
-  const dangerousExts = new Set([".php", ".exe", ".sh", ".bat", ".cmd", ".js", ".html", ".svg", ".xml"])
+  const dangerousExts = new Set([
+    ".php",
+    ".exe",
+    ".sh",
+    ".bat",
+    ".cmd",
+    ".js",
+    ".html",
+    ".svg",
+    ".xml",
+  ]);
   if (parts.some((p) => dangerousExts.has("." + p))) {
-    return { valid: false, error: "Filename contains dangerous extension" }
+    return { valid: false, error: "Filename contains dangerous extension" };
   }
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return { valid: false, error: `Extension ${ext} is not allowed` }
+    return { valid: false, error: `Extension ${ext} is not allowed` };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 export function validateMimeType(mimeType: string): ValidationResult {
   if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-    return { valid: false, error: `MIME type ${mimeType} is not allowed` }
+    return { valid: false, error: `MIME type ${mimeType} is not allowed` };
   }
-  return { valid: true }
+  return { valid: true };
 }
 
 export function validateFileSize(size: number): ValidationResult {
   if (size < MIN_FILE_SIZE) {
-    return { valid: false, error: "File is suspiciously small" }
+    return { valid: false, error: "File is suspiciously small" };
   }
   if (size > MAX_FILE_SIZE) {
-    return { valid: false, error: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit` }
+    return {
+      valid: false,
+      error: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
+    };
   }
-  return { valid: true }
+  return { valid: true };
 }
 
 export function validateMagicBytes(buffer: Buffer): ValidationResult {
   if (buffer.length < 12) {
-    return { valid: false, error: "File too small to validate" }
+    return { valid: false, error: "File too small to validate" };
   }
 
   const matched = MAGIC_BYTES.some(({ bytes, offset }) =>
-    bytes.every((b, i) => buffer[offset + i] === b)
-  )
+    bytes.every((b, i) => buffer[offset + i] === b),
+  );
 
   if (!matched) {
-    return { valid: false, error: "File signature does not match any allowed image format" }
+    return {
+      valid: false,
+      error: "File signature does not match any allowed image format",
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
-function validateDecompressionRatio(fileSize: number, width: number, height: number): ValidationResult {
-  const uncompressedSize = width * height * 4
-  const ratio = uncompressedSize / fileSize
+function validateDecompressionRatio(
+  fileSize: number,
+  width: number,
+  height: number,
+): ValidationResult {
+  const uncompressedSize = width * height * 4;
+  const ratio = uncompressedSize / fileSize;
 
   if (ratio > 500) {
-    return { valid: false, error: "Suspected decompression bomb" }
+    return { valid: false, error: "Suspected decompression bomb" };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 export async function processImage(
   buffer: Buffer,
   originalFilename: string,
-  mimeType: string
+  mimeType: string,
 ): Promise<ProcessedImage> {
-  const extCheck = validateExtension(originalFilename)
-  if (!extCheck.valid) throw new Error(extCheck.error)
+  const extCheck = validateExtension(originalFilename);
+  if (!extCheck.valid) throw new Error(extCheck.error);
 
-  const mimeCheck = validateMimeType(mimeType)
-  if (!mimeCheck.valid) throw new Error(mimeCheck.error)
+  const mimeCheck = validateMimeType(mimeType);
+  if (!mimeCheck.valid) throw new Error(mimeCheck.error);
 
-  const sizeCheck = validateFileSize(buffer.length)
-  if (!sizeCheck.valid) throw new Error(sizeCheck.error)
+  const sizeCheck = validateFileSize(buffer.length);
+  if (!sizeCheck.valid) throw new Error(sizeCheck.error);
 
-  const magicCheck = validateMagicBytes(buffer)
-  if (!magicCheck.valid) throw new Error(magicCheck.error)
+  const magicCheck = validateMagicBytes(buffer);
+  if (!magicCheck.valid) throw new Error(magicCheck.error);
 
-  const metadata = await sharp(buffer, { limitInputPixels: MAX_PIXEL_BUDGET }).metadata()
+  const metadata = await sharp(buffer, {
+    limitInputPixels: MAX_PIXEL_BUDGET,
+  }).metadata();
 
   if (!metadata.width || !metadata.height) {
-    throw new Error("Could not read image dimensions")
+    throw new Error("Could not read image dimensions");
   }
 
   if (metadata.width > MAX_DIMENSION || metadata.height > MAX_DIMENSION) {
-    throw new Error(`Image dimensions exceed ${MAX_DIMENSION}px limit`)
+    throw new Error(`Image dimensions exceed ${MAX_DIMENSION}px limit`);
   }
 
   if (metadata.width < MIN_DIMENSION || metadata.height < MIN_DIMENSION) {
-    throw new Error(`Image dimensions below ${MIN_DIMENSION}px minimum`)
+    throw new Error(`Image dimensions below ${MIN_DIMENSION}px minimum`);
   }
 
-  const pixelBudget = metadata.width * metadata.height
+  const pixelBudget = metadata.width * metadata.height;
   if (pixelBudget > MAX_PIXEL_BUDGET) {
-    throw new Error(`Image exceeds ${MAX_PIXEL_BUDGET} pixel budget`)
+    throw new Error(`Image exceeds ${MAX_PIXEL_BUDGET} pixel budget`);
   }
 
-  const aspectRatio = Math.max(metadata.width / metadata.height, metadata.height / metadata.width)
+  const aspectRatio = Math.max(
+    metadata.width / metadata.height,
+    metadata.height / metadata.width,
+  );
   if (aspectRatio > MAX_ASPECT_RATIO) {
-    throw new Error("Image has extreme aspect ratio")
+    throw new Error("Image has extreme aspect ratio");
   }
 
-  const decompCheck = validateDecompressionRatio(buffer.length, metadata.width, metadata.height)
-  if (!decompCheck.valid) throw new Error(decompCheck.error)
+  const decompCheck = validateDecompressionRatio(
+    buffer.length,
+    metadata.width,
+    metadata.height,
+  );
+  if (!decompCheck.valid) throw new Error(decompCheck.error);
 
   if (metadata.format === "svg" || metadata.format === "gif") {
-    throw new Error("SVG and GIF files are not accepted")
+    throw new Error("SVG and GIF files are not accepted");
   }
 
   const baseProcessor = sharp(buffer, { limitInputPixels: MAX_PIXEL_BUDGET })
     .rotate()
-    .removeAlpha()
+    .removeAlpha();
 
   const original = await baseProcessor
     .clone()
-    .resize(ORIGINAL_MAX, ORIGINAL_MAX, { fit: "inside", withoutEnlargement: true })
+    .resize(ORIGINAL_MAX, ORIGINAL_MAX, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .webp({ quality: OUTPUT_QUALITY })
-    .toBuffer()
+    .toBuffer();
 
   const medium = await baseProcessor
     .clone()
-    .resize(MEDIUM_SIZE, MEDIUM_SIZE, { fit: "inside", withoutEnlargement: true })
+    .resize(MEDIUM_SIZE, MEDIUM_SIZE, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .webp({ quality: OUTPUT_QUALITY })
-    .toBuffer()
+    .toBuffer();
 
   const thumbnail = await baseProcessor
     .clone()
     .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, { fit: "cover" })
     .webp({ quality: 75 })
-    .toBuffer()
+    .toBuffer();
 
-  const reprocessedMeta = await sharp(original).metadata()
+  const reprocessedMeta = await sharp(original).metadata();
   if (!reprocessedMeta.width || !reprocessedMeta.height) {
-    throw new Error("Image re-encoding produced invalid output")
+    throw new Error("Image re-encoding produced invalid output");
   }
 
-  const filename = `${crypto.randomUUID()}.webp`
+  const filename = `${crypto.randomUUID()}.webp`;
 
   return {
     original,
@@ -187,7 +221,7 @@ export async function processImage(
     height: reprocessedMeta.height,
     format: "webp",
     filename,
-  }
+  };
 }
 
 export const SAFE_VALIDATION_ERRORS = new Set([
@@ -202,45 +236,48 @@ export const SAFE_VALIDATION_ERRORS = new Set([
   "Only JPEG, PNG, and WebP images are allowed",
   "File too small to validate",
   "File signature does not match any allowed image format",
-  ...Array.from(ALLOWED_EXTENSIONS).map((ext) => `Extension ${ext} is not allowed`),
-  ...Array.from(ALLOWED_MIME_TYPES).map((mime) => `MIME type ${mime} is not allowed`),
+  ...Array.from(ALLOWED_EXTENSIONS).map(
+    (ext) => `Extension ${ext} is not allowed`,
+  ),
+  ...Array.from(ALLOWED_MIME_TYPES).map(
+    (mime) => `MIME type ${mime} is not allowed`,
+  ),
   `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
   `Image dimensions exceed ${MAX_DIMENSION}px limit`,
   `Image dimensions below ${MIN_DIMENSION}px minimum`,
   `Image exceeds ${MAX_PIXEL_BUDGET} pixel budget`,
-])
+]);
 
-const UNSAFE_THRESHOLD = new Set(["POSSIBLE", "LIKELY", "VERY_LIKELY"])
+const UNSAFE_THRESHOLD = new Set(["POSSIBLE", "LIKELY", "VERY_LIKELY"]);
 
-let visionClient: InstanceType<typeof import("@google-cloud/vision").ImageAnnotatorClient> | null = null
+let visionClient: InstanceType<
+  typeof import("@google-cloud/vision").ImageAnnotatorClient
+> | null = null;
 
 async function getVisionClient() {
   if (!visionClient) {
-    const { ImageAnnotatorClient } = await import("@google-cloud/vision")
-    visionClient = new ImageAnnotatorClient()
+    const { ImageAnnotatorClient } = await import("@google-cloud/vision");
+    visionClient = new ImageAnnotatorClient();
   }
-  return visionClient
+  return visionClient;
 }
 
 export async function moderateImage(
-  buffer: Buffer
+  buffer: Buffer,
 ): Promise<{ safe: boolean; flags: string[] }> {
   try {
-    const client = await getVisionClient()
+    const client = await getVisionClient();
 
     const [result] = await client.annotateImage({
       image: { content: buffer },
-      features: [
-        { type: "SAFE_SEARCH_DETECTION" },
-        { type: "TEXT_DETECTION" },
-      ],
-    })
+      features: [{ type: "SAFE_SEARCH_DETECTION" }, { type: "TEXT_DETECTION" }],
+    });
 
-    const flags: string[] = []
+    const flags: string[] = [];
 
-    const annotation = result.safeSearchAnnotation
+    const annotation = result.safeSearchAnnotation;
     if (!annotation) {
-      return { safe: false, flags: ["no_annotation"] }
+      return { safe: false, flags: ["no_annotation"] };
     }
 
     const checks = {
@@ -248,26 +285,26 @@ export async function moderateImage(
       violence: annotation.violence,
       racy: annotation.racy,
       medical: annotation.medical,
-    } as Record<string, string | null | undefined>
+    } as Record<string, string | null | undefined>;
 
     for (const [category, likelihood] of Object.entries(checks)) {
       if (likelihood && UNSAFE_THRESHOLD.has(likelihood)) {
-        flags.push(category)
+        flags.push(category);
       }
     }
 
-    const extractedText = result.fullTextAnnotation?.text || ""
+    const extractedText = result.fullTextAnnotation?.text || "";
     if (extractedText.trim().length >= 3) {
-      const { moderateText } = await import("./text-moderation.js")
-      const textResult = await moderateText(extractedText)
+      const { moderateText } = await import("./text-moderation.js");
+      const textResult = await moderateText(extractedText);
       if (!textResult.safe) {
-        flags.push(...textResult.flags)
+        flags.push(...textResult.flags);
       }
     }
 
-    return { safe: flags.length === 0, flags }
+    return { safe: flags.length === 0, flags };
   } catch (err) {
-    console.error("Vision SafeSearch error:", err)
-    return { safe: false, flags: ["moderation_error"] }
+    console.error("Vision SafeSearch error:", err);
+    return { safe: false, flags: ["moderation_error"] };
   }
 }

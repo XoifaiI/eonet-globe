@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react"
-import { useMap } from "@/components/ui/map"
-import { useEventStore } from "@/store/event-store"
-import { useStyleReady } from "@/store/style-store"
+import { useEffect, useRef } from "react";
+import { useMap } from "@/components/ui/map";
+import { useEventStore } from "@/store/event-store";
+import { useStyleReady } from "@/store/style-store";
 
-const TERRAIN_SOURCE = "terrain-dem"
-const HILLSHADE_LAYER = "terrain-hillshade"
+const TERRAIN_SOURCE = "terrain-dem";
+const HILLSHADE_LAYER = "terrain-hillshade";
 
 const STYLES = {
   dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -77,51 +77,51 @@ const STYLES = {
       exaggeration: 1.5,
     },
   },
-}
+};
 
 export default function BasemapController() {
-  const basemap = useEventStore((s) => s.basemap)
-  const { map, isLoaded } = useMap()
-  const prevBasemap = useRef(basemap)
+  const basemap = useEventStore((s) => s.basemap);
+  const { map, isLoaded } = useMap();
+  const prevBasemap = useRef(basemap);
 
   useEffect(() => {
-    if (!isLoaded || !map || prevBasemap.current === basemap) return
-    prevBasemap.current = basemap
+    if (!isLoaded || !map || prevBasemap.current === basemap) return;
+    prevBasemap.current = basemap;
 
-    const center = map.getCenter()
-    const zoom = map.getZoom()
-    const bearing = map.getBearing()
-    const pitch = map.getPitch()
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    const bearing = map.getBearing();
+    const pitch = map.getPitch();
 
-    useStyleReady.setState({ ready: false })
+    useStyleReady.setState({ ready: false });
 
-    const style = STYLES[basemap]
+    const style = STYLES[basemap];
     if (typeof style === "string") {
-      map.setStyle(style)
+      map.setStyle(style);
     } else {
-      map.setStyle(style as maplibregl.StyleSpecification)
+      map.setStyle(style as maplibregl.StyleSpecification);
     }
 
-    let cancelled = false
+    let cancelled = false;
     const onIdle = () => {
-      if (cancelled) return
-      map.jumpTo({ center, zoom, bearing, pitch })
+      if (cancelled) return;
+      map.jumpTo({ center, zoom, bearing, pitch });
 
       if (basemap === "terrain") {
-        map.easeTo({ pitch: 60, duration: 1000 })
+        map.easeTo({ pitch: 60, duration: 1000 });
       } else if (pitch > 0) {
-        map.easeTo({ pitch: 0, duration: 500 })
+        map.easeTo({ pitch: 0, duration: 500 });
       }
 
-      useStyleReady.setState((s) => ({ ready: true, version: s.version + 1 }))
-    }
-    map.once("idle", onIdle)
+      useStyleReady.setState((s) => ({ ready: true, version: s.version + 1 }));
+    };
+    map.once("idle", onIdle);
 
     return () => {
-      cancelled = true
-      map.off("idle", onIdle)
-    }
-  }, [basemap, map, isLoaded])
+      cancelled = true;
+      map.off("idle", onIdle);
+    };
+  }, [basemap, map, isLoaded]);
 
-  return null
+  return null;
 }

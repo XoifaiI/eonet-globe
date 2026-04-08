@@ -1,20 +1,27 @@
-import { useEffect, useState, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card, CardContent, CardHeader, CardTitle, CardAction, CardFooter } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useEffect, useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardAction,
+  CardFooter,
+} from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@/components/ui/hover-card"
-import { useAuthStore } from "@/store/auth-store"
-import { timeAgo } from "@/lib/eonet"
-import { toast } from "sonner"
+} from "@/components/ui/hover-card";
+import { useAuthStore } from "@/store/auth-store";
+import { timeAgo } from "@/lib/eonet";
+import { toast } from "sonner";
 import {
   Plus,
   Pencil,
@@ -23,135 +30,180 @@ import {
   Clock,
   FileText,
   X,
-} from "lucide-react"
+} from "lucide-react";
 
 interface WikiSection {
-  id: string
-  eventId: string
-  title: string
-  content: string
-  authorName: string
-  updatedAt: string
+  id: string;
+  eventId: string;
+  title: string;
+  content: string;
+  authorName: string;
+  updatedAt: string;
 }
 
 interface WikiRevision {
-  id: string
-  sectionId: string
-  content: string
-  authorName: string
-  status: string
-  createdAt: string
-  action: string
-  revertedFrom: string | null
+  id: string;
+  sectionId: string;
+  content: string;
+  authorName: string;
+  status: string;
+  createdAt: string;
+  action: string;
+  revertedFrom: string | null;
 }
 
 export default function WikiTab({ eventId }: { eventId: string }) {
-  const user = useAuthStore((s) => s.user)
-  const [sections, setSections] = useState<WikiSection[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingSection, setEditingSection] = useState<string | null>(null)
-  const [editContent, setEditContent] = useState("")
-  const [newSectionOpen, setNewSectionOpen] = useState(false)
-  const [newTitle, setNewTitle] = useState("")
-  const [newContent, setNewContent] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [historySection, setHistorySection] = useState<string | null>(null)
-  const [revisions, setRevisions] = useState<WikiRevision[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
+  const user = useAuthStore((s) => s.user);
+  const [sections, setSections] = useState<WikiSection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [newSectionOpen, setNewSectionOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [historySection, setHistorySection] = useState<string | null>(null);
+  const [revisions, setRevisions] = useState<WikiRevision[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fetchSections = useCallback(async () => {
     try {
-      const res = await fetch(`/api/wiki/${encodeURIComponent(eventId)}`)
+      const res = await fetch(`/api/wiki/${encodeURIComponent(eventId)}`);
       if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) setSections(data)
+        const data = await res.json();
+        if (Array.isArray(data)) setSections(data);
       }
-    } catch { /* */ }
-    finally { setLoading(false) }
-  }, [eventId])
+    } catch {
+      /* */
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
 
   useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
-    fetch(`/api/wiki/${encodeURIComponent(eventId)}`, { signal: controller.signal })
-      .then((res) => res.ok ? res.json() : [])
-      .then((data) => { if (Array.isArray(data)) setSections(data) })
-      .catch(() => { if (!controller.signal.aborted) setSections([]) })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
-  }, [eventId])
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(`/api/wiki/${encodeURIComponent(eventId)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setSections(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSections([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [eventId]);
 
   const handleCreateSection = useCallback(async () => {
-    if (!user || !newTitle.trim() || !newContent.trim()) return
-    setSaving(true)
+    if (!user || !newTitle.trim() || !newContent.trim()) return;
+    setSaving(true);
     try {
       const res = await fetch(`/api/wiki/${encodeURIComponent(eventId)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
         body: JSON.stringify({ title: newTitle, content: newContent }),
-      })
+      });
       if (res.ok) {
-        toast.success("Section added")
-        setNewTitle("")
-        setNewContent("")
-        setNewSectionOpen(false)
-        fetchSections()
+        toast.success("Section added");
+        setNewTitle("");
+        setNewContent("");
+        setNewSectionOpen(false);
+        fetchSections();
       } else {
-        const data = await res.json()
-        toast.error("Failed", { description: data.error })
+        const data = await res.json();
+        toast.error("Failed", { description: data.error });
       }
-    } catch { toast.error("Network error") }
-    finally { setSaving(false) }
-  }, [user, eventId, newTitle, newContent, fetchSections])
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+    }
+  }, [user, eventId, newTitle, newContent, fetchSections]);
 
-  const handleEditSection = useCallback(async (sectionId: string) => {
-    if (!user || !editContent.trim()) return
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify({ content: editContent }),
-      })
-      if (res.ok) {
-        toast.success("Edit saved")
-        setEditingSection(null)
-        setEditContent("")
-        fetchSections()
-      } else {
-        const data = await res.json()
-        toast.error("Failed", { description: data.error })
+  const handleEditSection = useCallback(
+    async (sectionId: string) => {
+      if (!user || !editContent.trim()) return;
+      setSaving(true);
+      try {
+        const res = await fetch(
+          `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${user.token}`,
+            },
+            body: JSON.stringify({ content: editContent }),
+          },
+        );
+        if (res.ok) {
+          toast.success("Edit saved");
+          setEditingSection(null);
+          setEditContent("");
+          fetchSections();
+        } else {
+          const data = await res.json();
+          toast.error("Failed", { description: data.error });
+        }
+      } catch {
+        toast.error("Network error");
+      } finally {
+        setSaving(false);
       }
-    } catch { toast.error("Network error") }
-    finally { setSaving(false) }
-  }, [user, eventId, editContent, fetchSections])
+    },
+    [user, eventId, editContent, fetchSections],
+  );
 
-  const handleRevert = useCallback(async (sectionId: string, revisionId: string) => {
-    if (!user) return
-    try {
-      const res = await fetch(
-        `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/revert/${encodeURIComponent(revisionId)}`,
-        { method: "POST", headers: { Authorization: `Bearer ${user.token}` } }
-      )
-      if (res.ok) {
-        toast.success("Reverted")
-        fetchSections()
+  const handleRevert = useCallback(
+    async (sectionId: string, revisionId: string) => {
+      if (!user) return;
+      try {
+        const res = await fetch(
+          `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/revert/${encodeURIComponent(revisionId)}`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${user.token}` },
+          },
+        );
+        if (res.ok) {
+          toast.success("Reverted");
+          fetchSections();
+        }
+      } catch {
+        toast.error("Network error");
       }
-    } catch { toast.error("Network error") }
-  }, [user, eventId, fetchSections])
+    },
+    [user, eventId, fetchSections],
+  );
 
-  const loadHistory = useCallback(async (sectionId: string) => {
-    setHistorySection(sectionId)
-    setLoadingHistory(true)
-    try {
-      const res = await fetch(`/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/history`)
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) setRevisions(data)
+  const loadHistory = useCallback(
+    async (sectionId: string) => {
+      setHistorySection(sectionId);
+      setLoadingHistory(true);
+      try {
+        const res = await fetch(
+          `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/history`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setRevisions(data);
+        }
+      } catch {
+        /* */
+      } finally {
+        setLoadingHistory(false);
       }
-    } catch { /* */ }
-    finally { setLoadingHistory(false) }
-  }, [eventId])
+    },
+    [eventId],
+  );
 
   if (loading) {
     return (
@@ -159,7 +211,7 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         <Skeleton className="h-20 w-full rounded-lg" />
         <Skeleton className="h-20 w-full rounded-lg" />
       </div>
-    )
+    );
   }
 
   return (
@@ -173,7 +225,9 @@ export default function WikiTab({ eventId }: { eventId: string }) {
             <div>
               <p className="text-sm font-medium">No wiki content yet</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {user ? "Be the first to document this event" : "Sign in to contribute"}
+                {user
+                  ? "Be the first to document this event"
+                  : "Sign in to contribute"}
               </p>
             </div>
           </div>
@@ -182,7 +236,9 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         {sections.map((section) => (
           <Card key={section.id} size="sm">
             <CardHeader>
-              <CardTitle className="text-sm break-words">{section.title}</CardTitle>
+              <CardTitle className="text-sm break-words">
+                {section.title}
+              </CardTitle>
               <CardAction>
                 <div className="flex items-center gap-1">
                   {user && (
@@ -191,8 +247,8 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
                       onClick={() => {
-                        setEditingSection(section.id)
-                        setEditContent(section.content)
+                        setEditingSection(section.id);
+                        setEditContent(section.content);
                       }}
                     >
                       <Pencil className="h-3 w-3" />
@@ -221,13 +277,19 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                 <div className="space-y-2">
                   <Textarea
                     value={editContent}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      setEditContent(e.target.value)
+                    }
                     placeholder="Write your edit..."
                     maxLength={10000}
                     className="min-h-[100px] text-sm"
                   />
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setEditingSection(null)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingSection(null)}
+                    >
                       Cancel
                     </Button>
                     <Button
@@ -246,7 +308,8 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                   </p>
                   {section.authorName && (
                     <p className="text-[10px] text-muted-foreground mt-2">
-                      Last edited by {section.authorName} &middot; {timeAgo(section.updatedAt)}
+                      Last edited by {section.authorName} &middot;{" "}
+                      {timeAgo(section.updatedAt)}
                     </p>
                   )}
                 </>
@@ -283,7 +346,10 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                     {revisions.map((rev, i) => (
                       <HoverCard key={rev.id}>
                         <HoverCardTrigger>
-                          <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto w-full justify-start rounded-none">
+                          <Button
+                            variant="ghost"
+                            className="flex items-center gap-2 px-3 py-2 h-auto w-full justify-start rounded-none"
+                          >
                             <Avatar className="h-5 w-5">
                               <AvatarFallback className="text-[8px]">
                                 {rev.authorName.charAt(0).toUpperCase()}
@@ -291,10 +357,12 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <p className="text-[11px]">
-                                <span className="font-medium">{rev.authorName}</span>
-                                {" "}
+                                <span className="font-medium">
+                                  {rev.authorName}
+                                </span>{" "}
                                 <span className="text-muted-foreground">
-                                  {rev.action === "create" && "created this section"}
+                                  {rev.action === "create" &&
+                                    "created this section"}
                                   {rev.action === "edit" && "edited"}
                                   {rev.action === "revert" && "reverted"}
                                 </span>
@@ -305,7 +373,10 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                               </p>
                             </div>
                             <div className="flex items-center gap-1">
-                              <Badge variant="secondary" className="text-[8px] h-4 px-1">
+                              <Badge
+                                variant="secondary"
+                                className="text-[8px] h-4 px-1"
+                              >
                                 {rev.action}
                               </Badge>
                               {user && i < revisions.length - 1 && (
@@ -314,8 +385,8 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                                   size="icon"
                                   className="h-5 w-5"
                                   onClick={(e: React.MouseEvent) => {
-                                    e.stopPropagation()
-                                    handleRevert(section.id, rev.id)
+                                    e.stopPropagation();
+                                    handleRevert(section.id, rev.id);
                                   }}
                                   title="Restore this version"
                                 >
@@ -346,13 +417,17 @@ export default function WikiTab({ eventId }: { eventId: string }) {
               <Input
                 placeholder="Section title..."
                 value={newTitle}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTitle(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setNewTitle(e.target.value)
+                }
                 maxLength={200}
                 className="text-sm"
               />
               <Textarea
                 value={newContent}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewContent(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setNewContent(e.target.value)
+                }
                 placeholder="Write content for this section..."
                 maxLength={10000}
                 className="min-h-[120px] text-sm"
@@ -361,13 +436,19 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setNewSectionOpen(false); setNewTitle(""); setNewContent("") }}
+                  onClick={() => {
+                    setNewSectionOpen(false);
+                    setNewTitle("");
+                    setNewContent("");
+                  }}
                 >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
-                  disabled={saving || newTitle.length < 2 || newContent.length < 10}
+                  disabled={
+                    saving || newTitle.length < 2 || newContent.length < 10
+                  }
                   onClick={handleCreateSection}
                 >
                   {saving ? "Submitting..." : "Submit Section"}
@@ -396,5 +477,5 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         )}
       </div>
     </ScrollArea>
-  )
+  );
 }

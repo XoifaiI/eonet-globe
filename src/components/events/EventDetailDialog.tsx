@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,19 +6,19 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { toast } from "sonner"
-import WikiTab from "@/components/events/WikiTab"
-import { useEventStore } from "@/store/event-store"
-import { useAuthStore } from "@/store/auth-store"
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import WikiTab from "@/components/events/WikiTab";
+import { useEventStore } from "@/store/event-store";
+import { useAuthStore } from "@/store/auth-store";
 import {
   getCategoryColor,
   getCategoryIcon,
@@ -27,9 +27,9 @@ import {
   getCategoryIllustration,
   getLatestCoordinates,
   getEventDuration,
-} from "@/lib/eonet"
-import { loadAndValidateImage } from "@/lib/image-validation"
-import type { UserImage } from "@/types"
+} from "@/lib/eonet";
+import { loadAndValidateImage } from "@/lib/image-validation";
+import type { UserImage } from "@/types";
 import {
   Upload,
   Calendar,
@@ -45,111 +45,130 @@ import {
   Eye,
   Copy,
   FileText,
-} from "lucide-react"
+} from "lucide-react";
 
 export default function EventDetailDialog() {
-  const selectedEvent = useEventStore((s) => s.selectedEvent)
-  const user = useAuthStore((s) => s.user)
+  const selectedEvent = useEventStore((s) => s.selectedEvent);
+  const user = useAuthStore((s) => s.user);
 
-  const [images, setImages] = useState<UserImage[]>([])
-  const [loadingImages, setLoadingImages] = useState(false)
-  const [caption, setCaption] = useState("")
-  const [uploading, setUploading] = useState(false)
-  const [uploadSuccess, setUploadSuccess] = useState(false)
-  const [uploadError, setUploadError] = useState("")
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [previewImage, setPreviewImage] = useState<UserImage | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [images, setImages] = useState<UserImage[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewImage, setPreviewImage] = useState<UserImage | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const detailOpen = useEventStore((s) => s.detailOpen)
-  const setDetailOpen = useEventStore((s) => s.setDetailOpen)
+  const detailOpen = useEventStore((s) => s.detailOpen);
+  const setDetailOpen = useEventStore((s) => s.setDetailOpen);
 
-  const eventId = selectedEvent?.id
-  const open = detailOpen && !!selectedEvent
+  const eventId = selectedEvent?.id;
+  const open = detailOpen && !!selectedEvent;
 
   useEffect(() => {
-    if (!eventId) return
-    const controller = new AbortController()
-    setLoadingImages(true)
-    setImages([])
-    fetch(`/api/images/${encodeURIComponent(eventId)}`, { signal: controller.signal })
+    if (!eventId) return;
+    const controller = new AbortController();
+    setLoadingImages(true);
+    setImages([]);
+    fetch(`/api/images/${encodeURIComponent(eventId)}`, {
+      signal: controller.signal,
+    })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch images")
-        return res.json()
+        if (!res.ok) throw new Error("Failed to fetch images");
+        return res.json();
       })
-      .then((data) => { if (Array.isArray(data)) setImages(data) })
-      .catch(() => { if (!controller.signal.aborted) setImages([]) })
-      .finally(() => { if (!controller.signal.aborted) setLoadingImages(false) })
-    return () => controller.abort()
-  }, [eventId])
+      .then((data) => {
+        if (Array.isArray(data)) setImages(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setImages([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingImages(false);
+      });
+    return () => controller.abort();
+  }, [eventId]);
 
   useEffect(() => {
-    if (!uploadSuccess) return
-    const timer = setTimeout(() => setUploadSuccess(false), 3000)
-    return () => clearTimeout(timer)
-  }, [uploadSuccess])
+    if (!uploadSuccess) return;
+    const timer = setTimeout(() => setUploadSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  }, [uploadSuccess]);
 
   const handleUpload = useCallback(async () => {
-    if (!eventId || !user || !selectedFile) return
-    setUploading(true)
-    setUploadError("")
+    if (!eventId || !user || !selectedFile) return;
+    setUploading(true);
+    setUploadError("");
 
-    const validation = await loadAndValidateImage(selectedFile)
+    const validation = await loadAndValidateImage(selectedFile);
     if (!validation.valid) {
-      setUploadError(validation.error || "Invalid image")
-      setUploading(false)
-      return
+      setUploadError(validation.error || "Invalid image");
+      setUploading(false);
+      return;
     }
 
-    const formData = new FormData()
-    formData.append("image", selectedFile)
-    formData.append("caption", caption)
+    const formData = new FormData();
+    formData.append("image", selectedFile);
+    formData.append("caption", caption);
 
     try {
       const res = await fetch(`/api/images/${encodeURIComponent(eventId)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${user.token}` },
         body: formData,
-      })
+      });
 
       if (!res.ok) {
-        const data = await res.json()
-        setUploadError(data.error || "Upload failed")
-        return
+        const data = await res.json();
+        setUploadError(data.error || "Upload failed");
+        return;
       }
 
-      const newImage = await res.json()
-      setImages((prev) => [...prev, newImage])
-      setCaption("")
-      setSelectedFile(null)
-      setUploadSuccess(true)
-      if (fileInputRef.current) fileInputRef.current.value = ""
+      const newImage = await res.json();
+      setImages((prev) => [...prev, newImage]);
+      setCaption("");
+      setSelectedFile(null);
+      setUploadSuccess(true);
+      if (fileInputRef.current) fileInputRef.current.value = "";
 
-      toast.success("Photo uploaded")
+      toast.success("Photo uploaded");
     } catch {
-      setUploadError("Network error during upload")
+      setUploadError("Network error during upload");
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }, [eventId, user, selectedFile, caption])
+  }, [eventId, user, selectedFile, caption]);
 
-  if (!selectedEvent) return null
+  if (!selectedEvent) return null;
 
-  const latestGeo = selectedEvent.geometry[selectedEvent.geometry.length - 1]
-  const color = getCategoryColor(selectedEvent)
-  const Icon = getCategoryIcon(selectedEvent)
-  const coords = getLatestCoordinates(selectedEvent)
-  const illustration = getCategoryIllustration(selectedEvent)
-  const isOpen = selectedEvent.closed === null
-  const observationCount = selectedEvent.geometry.length
-  const duration = getEventDuration(selectedEvent)
+  const latestGeo = selectedEvent.geometry[selectedEvent.geometry.length - 1];
+  const color = getCategoryColor(selectedEvent);
+  const Icon = getCategoryIcon(selectedEvent);
+  const coords = getLatestCoordinates(selectedEvent);
+  const illustration = getCategoryIllustration(selectedEvent);
+  const isOpen = selectedEvent.closed === null;
+  const observationCount = selectedEvent.geometry.length;
+  const duration = getEventDuration(selectedEvent);
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) setDetailOpen(false) }}>
-        <DialogContent aria-describedby={undefined} className="max-w-3xl w-[90vw] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0">
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o) setDetailOpen(false);
+        }}
+      >
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-w-3xl w-[90vw] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0"
+        >
           {illustration && (
-            <div className="relative h-44 shrink-0" style={{ marginBottom: "-2px" }}>
+            <div
+              className="relative h-44 shrink-0"
+              style={{ marginBottom: "-2px" }}
+            >
               <img
                 src={illustration}
                 alt=""
@@ -171,7 +190,9 @@ export default function EventDetailDialog() {
                   </Badge>
                 ) : (
                   <Badge className="text-xs h-6 bg-muted/80 text-muted-foreground backdrop-blur-sm border-0">
-                    Closed {selectedEvent.closed && `on ${new Date(selectedEvent.closed).toLocaleDateString()}`}
+                    Closed{" "}
+                    {selectedEvent.closed &&
+                      `on ${new Date(selectedEvent.closed).toLocaleDateString()}`}
                   </Badge>
                 )}
               </div>
@@ -198,8 +219,8 @@ export default function EventDetailDialog() {
                   size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(
-                      `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`
-                    )
+                      `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`,
+                    );
                   }}
                   className="h-auto p-0 gap-1 text-muted-foreground hover:text-foreground"
                   title="Copy coordinates"
@@ -215,7 +236,11 @@ export default function EventDetailDialog() {
             <div className="px-5 pt-2 flex gap-1.5">
               <Badge
                 className="text-xs h-6"
-                style={{ backgroundColor: `${color}20`, color, borderColor: `${color}30` }}
+                style={{
+                  backgroundColor: `${color}20`,
+                  color,
+                  borderColor: `${color}30`,
+                }}
               >
                 <Icon className="h-3 w-3 mr-1" />
                 {selectedEvent.categories[0]?.title}
@@ -225,7 +250,9 @@ export default function EventDetailDialog() {
                   Active
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="text-xs h-6">Closed</Badge>
+                <Badge variant="secondary" className="text-xs h-6">
+                  Closed
+                </Badge>
               )}
             </div>
           )}
@@ -233,29 +260,51 @@ export default function EventDetailDialog() {
           <div className="px-5 pt-3">
             <div className="flex flex-wrap gap-2">
               {latestGeo?.magnitudeValue && (
-                <Badge variant="outline" className="h-auto py-1.5 px-3 gap-2 text-xs font-normal">
+                <Badge
+                  variant="outline"
+                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
+                >
                   <Ruler className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold tabular-nums">{latestGeo.magnitudeValue}</span>
-                  <span className="text-muted-foreground">{latestGeo.magnitudeUnit}</span>
+                  <span className="font-semibold tabular-nums">
+                    {latestGeo.magnitudeValue}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {latestGeo.magnitudeUnit}
+                  </span>
                 </Badge>
               )}
               {coords && (
-                <Badge variant="outline" className="h-auto py-1.5 px-3 gap-2 text-xs font-normal">
+                <Badge
+                  variant="outline"
+                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
+                >
                   <MapPin className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold font-mono tabular-nums">{coords[1].toFixed(3)}, {coords[0].toFixed(3)}</span>
+                  <span className="font-semibold font-mono tabular-nums">
+                    {coords[1].toFixed(3)}, {coords[0].toFixed(3)}
+                  </span>
                 </Badge>
               )}
               {duration !== null && duration > 0 && (
-                <Badge variant="outline" className="h-auto py-1.5 px-3 gap-2 text-xs font-normal">
+                <Badge
+                  variant="outline"
+                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
+                >
                   <Clock className="h-3 w-3 text-muted-foreground" />
                   <span className="font-semibold tabular-nums">{duration}</span>
-                  <span className="text-muted-foreground">{duration === 1 ? "day" : "days"}</span>
+                  <span className="text-muted-foreground">
+                    {duration === 1 ? "day" : "days"}
+                  </span>
                 </Badge>
               )}
               {observationCount > 1 && (
-                <Badge variant="outline" className="h-auto py-1.5 px-3 gap-2 text-xs font-normal">
+                <Badge
+                  variant="outline"
+                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
+                >
                   <Eye className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold tabular-nums">{observationCount}</span>
+                  <span className="font-semibold tabular-nums">
+                    {observationCount}
+                  </span>
                   <span className="text-muted-foreground">observations</span>
                 </Badge>
               )}
@@ -263,12 +312,18 @@ export default function EventDetailDialog() {
           </div>
 
           <div className="px-5 pt-3 pb-4 flex-1 overflow-hidden flex flex-col">
-            <Tabs defaultValue="photos" className="flex-1 flex flex-col overflow-hidden">
+            <Tabs
+              defaultValue="photos"
+              className="flex-1 flex flex-col overflow-hidden"
+            >
               <TabsList className="w-full justify-start h-9">
                 <TabsTrigger value="photos" className="text-xs gap-1.5">
                   <Camera className="h-3 w-3" />
                   Photos
-                  <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5">
+                  <Badge
+                    variant="secondary"
+                    className="text-[9px] h-4 px-1 ml-0.5"
+                  >
                     {images.length}
                   </Badge>
                 </TabsTrigger>
@@ -279,13 +334,19 @@ export default function EventDetailDialog() {
                 <TabsTrigger value="sources" className="text-xs gap-1.5">
                   <ExternalLink className="h-3 w-3" />
                   Sources
-                  <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5">
+                  <Badge
+                    variant="secondary"
+                    className="text-[9px] h-4 px-1 ml-0.5"
+                  >
                     {selectedEvent.sources.length}
                   </Badge>
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="photos" className="flex-1 overflow-hidden mt-3">
+              <TabsContent
+                value="photos"
+                className="flex-1 overflow-hidden mt-3"
+              >
                 {previewImage ? (
                   <div className="h-full flex flex-col">
                     <div className="flex items-center justify-between mb-2">
@@ -312,7 +373,9 @@ export default function EventDetailDialog() {
                     <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                       <span>by {previewImage.username}</span>
                       <Separator orientation="vertical" className="h-3" />
-                      <span>{new Date(previewImage.createdAt).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(previewImage.createdAt).toLocaleDateString()}
+                      </span>
                       <Separator orientation="vertical" className="h-3" />
                       <span>{previewImage.originalName}</span>
                     </div>
@@ -322,7 +385,10 @@ export default function EventDetailDialog() {
                     {loadingImages && (
                       <div className="grid grid-cols-4 gap-2">
                         {[0, 1, 2, 3].map((i) => (
-                          <Skeleton key={i} className="w-full aspect-square rounded-lg" />
+                          <Skeleton
+                            key={i}
+                            className="w-full aspect-square rounded-lg"
+                          />
                         ))}
                       </div>
                     )}
@@ -346,28 +412,30 @@ export default function EventDetailDialog() {
                     {!loadingImages && images.length > 0 && (
                       <div className="grid grid-cols-4 gap-2">
                         {images.map((img) => (
-                            <Button
-                              key={img.id}
-                              variant="ghost"
-                              onClick={() => setPreviewImage(img)}
-                              className="group relative rounded-lg overflow-hidden border border-border/50 h-auto p-0 aspect-square"
-                            >
-                              <img
-                                src={`/api/images/file/${encodeURIComponent(img.filename)}`}
-                                alt={img.caption || "Event photo"}
-                                className="w-full aspect-square object-cover transition-transform group-hover:scale-105"
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                              />
-                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                                {img.caption && (
-                                  <p className="text-[10px] text-white truncate">{img.caption}</p>
-                                )}
-                                <p className="text-[10px] text-white/60">
-                                  {img.username} &middot; {timeAgo(img.createdAt)}
+                          <Button
+                            key={img.id}
+                            variant="ghost"
+                            onClick={() => setPreviewImage(img)}
+                            className="group relative rounded-lg overflow-hidden border border-border/50 h-auto p-0 aspect-square"
+                          >
+                            <img
+                              src={`/api/images/file/${encodeURIComponent(img.filename)}`}
+                              alt={img.caption || "Event photo"}
+                              className="w-full aspect-square object-cover transition-transform group-hover:scale-105"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
+                              {img.caption && (
+                                <p className="text-[10px] text-white truncate">
+                                  {img.caption}
                                 </p>
-                              </div>
-                            </Button>
+                              )}
+                              <p className="text-[10px] text-white/60">
+                                {img.username} &middot; {timeAgo(img.createdAt)}
+                              </p>
+                            </div>
+                          </Button>
                         ))}
                       </div>
                     )}
@@ -414,7 +482,9 @@ export default function EventDetailDialog() {
                         <Globe className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                         <div>
                           <p className="text-sm font-medium">NASA EONET</p>
-                          <p className="text-[10px] text-muted-foreground">Official event page</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Official event page
+                          </p>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[10px] shrink-0">
@@ -440,7 +510,9 @@ export default function EventDetailDialog() {
               {uploadError && (
                 <Alert variant="destructive" className="w-full">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">{uploadError}</AlertDescription>
+                  <AlertDescription className="text-xs">
+                    {uploadError}
+                  </AlertDescription>
                 </Alert>
               )}
               <input
@@ -449,16 +521,16 @@ export default function EventDetailDialog() {
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 onChange={async (e) => {
-                  const file = e.target.files?.[0] || null
+                  const file = e.target.files?.[0] || null;
                   if (file) {
-                    const check = await loadAndValidateImage(file)
+                    const check = await loadAndValidateImage(file);
                     if (!check.valid) {
-                      setUploadError(check.error || "Invalid image")
-                      return
+                      setUploadError(check.error || "Invalid image");
+                      return;
                     }
                   }
-                  setUploadError("")
-                  setSelectedFile(file)
+                  setUploadError("");
+                  setSelectedFile(file);
                 }}
               />
               <div className="flex items-center gap-2 w-full">
@@ -499,5 +571,5 @@ export default function EventDetailDialog() {
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

@@ -1,48 +1,49 @@
-import { useMemo, useState, useEffect, useRef } from "react"
-import uFuzzy from "@leeoniya/ufuzzy"
-import type { EONETEvent } from "@/types"
-import { SEARCH_DEBOUNCE_MS, MIN_SEARCH_QUERY_LENGTH } from "@/lib/constants"
+import { useMemo, useState, useEffect } from "react";
+import uFuzzy from "@leeoniya/ufuzzy";
+import type { EONETEvent } from "@/types";
+import { SEARCH_DEBOUNCE_MS, MIN_SEARCH_QUERY_LENGTH } from "@/lib/constants";
 
-const uf = new uFuzzy({ intraMode: 1, intraIns: 1 })
+const uf = new uFuzzy({ intraMode: 1, intraIns: 1 });
+
+function useDebouncedValue(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return value.length < MIN_SEARCH_QUERY_LENGTH ? value : debounced;
+}
 
 export function useFuzzySearch(
   events: EONETEvent[],
   query: string,
-  categoryFilter: string | null
+  categoryFilter: string | null,
 ) {
-  const [debouncedQuery, setDebouncedQuery] = useState(query)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  useEffect(() => {
-    if (query.length < MIN_SEARCH_QUERY_LENGTH) {
-      setDebouncedQuery(query)
-      return
-    }
-    timerRef.current = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(timerRef.current)
-  }, [query])
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
 
   const categoryFiltered = useMemo(() => {
-    if (!categoryFilter) return events
-    return events.filter((e) => e.categories[0]?.title === categoryFilter)
-  }, [events, categoryFilter])
+    if (!categoryFilter) return events;
+    return events.filter((e) => e.categories[0]?.title === categoryFilter);
+  }, [events, categoryFilter]);
 
   const haystack = useMemo(
     () => categoryFiltered.map((e) => e.title),
-    [categoryFiltered]
-  )
+    [categoryFiltered],
+  );
 
   return useMemo(() => {
-    const needle = debouncedQuery.trim()
-    if (!needle) return categoryFiltered
+    const needle = debouncedQuery.trim();
+    if (!needle) return categoryFiltered;
 
-    const [idxs, info, order] = uf.search(haystack, needle)
-    if (!idxs) return []
+    const [idxs, info, order] = uf.search(haystack, needle);
+    if (!idxs) return [];
 
     if (order && order.length > 0 && info) {
-      return order.map((oi) => categoryFiltered[idxs[oi]])
+      return order.map((oi) => categoryFiltered[idxs[oi]]);
     }
 
-    return idxs.map((idx) => categoryFiltered[idx])
-  }, [categoryFiltered, haystack, debouncedQuery])
+    return idxs.map((idx) => categoryFiltered[idx]);
+  }, [categoryFiltered, haystack, debouncedQuery]);
 }

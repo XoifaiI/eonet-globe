@@ -1,6 +1,10 @@
-import type { EONETEvent } from "@/types"
-import { DEFAULT_CATEGORY_COLOR, MS_PER_DAY, MS_PER_HOUR } from "@/lib/constants"
-import type { LucideIcon } from "lucide-react"
+import type { EONETEvent } from "@/types";
+import {
+  DEFAULT_CATEGORY_COLOR,
+  MS_PER_DAY,
+  MS_PER_HOUR,
+} from "@/lib/constants";
+import type { LucideIcon } from "lucide-react";
 import {
   Flame,
   CloudLightning,
@@ -12,7 +16,7 @@ import {
   Thermometer,
   Factory,
   HelpCircle,
-} from "lucide-react"
+} from "lucide-react";
 
 export const CATEGORY_COLORS: Record<string, string> = {
   wildfires: "#ef4444",
@@ -27,9 +31,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   tempExtremes: "#f97316",
   waterColor: "#14b8a6",
   manmade: "#6b7280",
-}
+};
 
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   wildfires: Flame,
   severeStorms: CloudLightning,
   volcanoes: Mountain,
@@ -40,7 +44,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   drought: Droplets,
   tempExtremes: Thermometer,
   manmade: Factory,
-}
+};
 
 export const CATEGORY_EMOJI: Record<string, string> = {
   wildfires: "🔥",
@@ -56,7 +60,7 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   waterColor: "🟢",
   manmade: "🏭",
   earthquakes: "💥",
-}
+};
 
 const CATEGORY_ILLUSTRATIONS: Record<string, string> = {
   wildfires: "/wildfire.webp",
@@ -72,55 +76,66 @@ const CATEGORY_ILLUSTRATIONS: Record<string, string> = {
   snow: "/snow.webp",
   waterColor: "/dirtywater.webp",
   manmade: "/mandmade.webp",
-}
+};
 
 export function getCategoryIllustration(event: EONETEvent): string | null {
-  return CATEGORY_ILLUSTRATIONS[event.categories[0]?.id || ""] || null
+  return CATEGORY_ILLUSTRATIONS[event.categories[0]?.id || ""] || null;
 }
 
 export function getCategoryColor(event: EONETEvent): string {
-  return CATEGORY_COLORS[event.categories[0]?.id || ""] || DEFAULT_CATEGORY_COLOR
+  return (
+    CATEGORY_COLORS[event.categories[0]?.id || ""] || DEFAULT_CATEGORY_COLOR
+  );
 }
 
 export function getCategoryIcon(event: EONETEvent): LucideIcon {
-  return CATEGORY_ICONS[event.categories[0]?.id || ""] || HelpCircle
+  return CATEGORY_ICONS[event.categories[0]?.id || ""] || HelpCircle;
+}
+
+export function getCategoryIconById(categoryId: string): LucideIcon {
+  return CATEGORY_ICONS[categoryId] || HelpCircle;
 }
 
 export function getCategoryEmoji(event: EONETEvent): string {
-  return CATEGORY_EMOJI[event.categories[0]?.id || ""] || "📍"
+  return CATEGORY_EMOJI[event.categories[0]?.id || ""] || "📍";
 }
 
-export function getLatestCoordinates(event: EONETEvent): [number, number] | null {
-  const geo = event.geometry[event.geometry.length - 1]
-  if (!geo?.coordinates) return null
-  if (geo.type === "Point") return [geo.coordinates[0], geo.coordinates[1]]
-  return null
+export function getLatestCoordinates(
+  event: EONETEvent,
+): [number, number] | null {
+  const geo = event.geometry[event.geometry.length - 1];
+  if (!geo?.coordinates) return null;
+  if (geo.type === "Point") return [geo.coordinates[0], geo.coordinates[1]];
+  return null;
 }
 
 export function getEventDuration(event: EONETEvent): number | null {
-  const first = event.geometry[0]
-  const last = event.geometry[event.geometry.length - 1]
-  if (!first || !last || first === last) return null
-  const days = Math.ceil((new Date(last.date).getTime() - new Date(first.date).getTime()) / MS_PER_DAY)
-  return days > 0 ? days : null
+  const first = event.geometry[0];
+  const last = event.geometry[event.geometry.length - 1];
+  if (!first || !last || first === last) return null;
+  const days = Math.ceil(
+    (new Date(last.date).getTime() - new Date(first.date).getTime()) /
+      MS_PER_DAY,
+  );
+  return days > 0 ? days : null;
 }
 
 export function formatEventDate(event: EONETEvent): string {
-  const geo = event.geometry[event.geometry.length - 1]
-  if (!geo?.date) return "Unknown date"
+  const geo = event.geometry[event.geometry.length - 1];
+  if (!geo?.date) return "Unknown date";
   return new Date(geo.date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  })
+  });
 }
 
 export function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const hours = Math.floor(diff / MS_PER_HOUR)
-  if (hours < 1) return "Just now"
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(diff / MS_PER_DAY)
-  if (days < 7) return `${days}d ago`
-  return `${Math.floor(days / 7)}w ago`
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / MS_PER_HOUR);
+  if (hours < 1) return "Just now";
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(diff / MS_PER_DAY);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
 }

@@ -1,37 +1,42 @@
-import { useEffect, useCallback, useRef } from "react"
-import { useAuthStore } from "@/store/auth-store"
+import { useEffect, useCallback, useRef } from "react";
+import { useAuthStore } from "@/store/auth-store";
 import {
   GOOGLE_GSI_SCRIPT_URL,
   GOOGLE_BUTTON_WIDTH,
   IDLE_CALLBACK_TIMEOUT_MS,
   SCRIPT_LOAD_FALLBACK_DELAY_MS,
-} from "@/lib/constants"
-import type { GoogleCredentialResponse } from "@/types"
+} from "@/lib/constants";
+import type { GoogleCredentialResponse } from "@/types";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ""
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 declare global {
   interface Window {
     google?: {
       accounts: {
         id: {
-          initialize: (config: Record<string, unknown>) => void
-          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void
-          prompt: () => void
-          revoke: (email: string, callback: () => void) => void
-          cancel: () => void
-        }
-      }
-    }
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (
+            element: HTMLElement,
+            config: Record<string, unknown>,
+          ) => void;
+          prompt: () => void;
+          revoke: (email: string, callback: () => void) => void;
+          cancel: () => void;
+        };
+      };
+    };
   }
 }
 
-let scriptLoaded = false
+let scriptLoaded = false;
 
-export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>) {
-  const setUser = useAuthStore((s) => s.setUser)
-  const user = useAuthStore((s) => s.user)
-  const initializedRef = useRef(false)
+export function useGoogleAuth(
+  buttonRef: React.RefObject<HTMLDivElement | null>,
+) {
+  const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
+  const initializedRef = useRef(false);
 
   const handleCredentialResponse = useCallback(
     async (response: GoogleCredentialResponse) => {
@@ -40,87 +45,97 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ credential: response.credential }),
-        })
-        if (res.ok) setUser(await res.json())
-      } catch { /* silently handle */ }
+        });
+        if (res.ok) setUser(await res.json());
+      } catch {
+        /* silently handle */
+      }
     },
-    [setUser]
-  )
+    [setUser],
+  );
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
-      console.error("VITE_GOOGLE_CLIENT_ID is not set, Google Sign-In disabled")
-      return
+      console.error(
+        "VITE_GOOGLE_CLIENT_ID is not set, Google Sign-In disabled",
+      );
+      return;
     }
-    if (user) return
+    if (user) return;
 
     function initGoogle() {
-      if (initializedRef.current) return
-      initializedRef.current = true
+      if (initializedRef.current) return;
+      initializedRef.current = true;
 
       window.google?.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-      })
+      });
 
       if (buttonRef.current) {
-        buttonRef.current.innerHTML = ""
+        buttonRef.current.innerHTML = "";
         window.google?.accounts.id.renderButton(buttonRef.current, {
           theme: "filled_black",
           size: "large",
           width: GOOGLE_BUTTON_WIDTH,
           shape: "pill",
           text: "signin_with",
-        })
+        });
       }
     }
 
     if (scriptLoaded && window.google) {
-      initGoogle()
-      return
+      initGoogle();
+      return;
     }
 
-    const existing = document.querySelector(`script[src*="accounts.google.com/gsi/client"]`)
+    const existing = document.querySelector(
+      `script[src*="accounts.google.com/gsi/client"]`,
+    );
     if (existing) {
-      if (window.google) initGoogle()
+      if (window.google) initGoogle();
       else {
-        existing.addEventListener("load", initGoogle)
-        return () => { existing.removeEventListener("load", initGoogle) }
+        existing.addEventListener("load", initGoogle);
+        return () => {
+          existing.removeEventListener("load", initGoogle);
+        };
       }
-      return
+      return;
     }
 
-    let idleHandle: number | undefined
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    let idleHandle: number | undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
     const loadScript = () => {
-      const script = document.createElement("script")
-      script.src = GOOGLE_GSI_SCRIPT_URL
-      script.async = true
-      script.defer = true
+      const script = document.createElement("script");
+      script.src = GOOGLE_GSI_SCRIPT_URL;
+      script.async = true;
+      script.defer = true;
       script.onload = () => {
-        scriptLoaded = true
-        initGoogle()
-      }
-      document.head.appendChild(script)
-    }
+        scriptLoaded = true;
+        initGoogle();
+      };
+      document.head.appendChild(script);
+    };
 
     if ("requestIdleCallback" in window) {
-      idleHandle = requestIdleCallback(loadScript, { timeout: IDLE_CALLBACK_TIMEOUT_MS })
+      idleHandle = requestIdleCallback(loadScript, {
+        timeout: IDLE_CALLBACK_TIMEOUT_MS,
+      });
     } else {
-      timeoutHandle = setTimeout(loadScript, SCRIPT_LOAD_FALLBACK_DELAY_MS)
+      timeoutHandle = setTimeout(loadScript, SCRIPT_LOAD_FALLBACK_DELAY_MS);
     }
 
     return () => {
-      if (idleHandle !== undefined) cancelIdleCallback(idleHandle)
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
-    }
-  }, [handleCredentialResponse, buttonRef, user])
+      if (idleHandle !== undefined) cancelIdleCallback(idleHandle);
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    };
+  }, [handleCredentialResponse, buttonRef, user]);
 
   useEffect(() => {
     if (user) {
-      initializedRef.current = false
-      if (buttonRef.current) buttonRef.current.innerHTML = ""
+      initializedRef.current = false;
+      if (buttonRef.current) buttonRef.current.innerHTML = "";
     }
-  }, [user, buttonRef])
+  }, [user, buttonRef]);
 }

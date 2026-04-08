@@ -1,92 +1,95 @@
-import crypto from "crypto"
-import { readPath, writePath, modifyJson } from "./db.js"
+import crypto from "crypto";
+import { readPath, writePath, modifyJson } from "./db.js";
 
 export interface WikiSection {
-  id: string
-  eventId: string
-  title: string
-  latestRevisionId: string
-  createdBy: string
-  createdAt: string
-  updatedAt: string
+  id: string;
+  eventId: string;
+  title: string;
+  latestRevisionId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WikiRevision {
-  id: string
-  sectionId: string
-  eventId: string
-  content: string
-  authorId: string
-  authorName: string
-  status: "pending" | "approved" | "rejected"
-  toxicityScore: number | null
-  moderationFlags: string[]
-  createdAt: string
-  action: "create" | "edit" | "revert"
-  revertedFrom: string | null
+  id: string;
+  sectionId: string;
+  eventId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  status: "pending" | "approved" | "rejected";
+  toxicityScore: number | null;
+  moderationFlags: string[];
+  createdAt: string;
+  action: "create" | "edit" | "revert";
+  revertedFrom: string | null;
 }
 
 export interface WikiSectionWithContent extends WikiSection {
-  content: string
-  authorName: string
+  content: string;
+  authorName: string;
 }
 
-const ID_PATTERN = /^[a-zA-Z0-9_-]+$/
+const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 function validateStoreId(id: string, label: string): void {
   if (!id || !ID_PATTERN.test(id) || id.length > 200) {
-    throw new Error(`Invalid ${label}`)
+    throw new Error(`Invalid ${label}`);
   }
 }
 
 function sectionsPath(eventId: string) {
-  return `meta/wiki/${eventId}/sections.json`
+  return `meta/wiki/${eventId}/sections.json`;
 }
 
 function latestPath(eventId: string, sectionId: string) {
-  return `meta/wiki/${eventId}/${sectionId}/latest.json`
+  return `meta/wiki/${eventId}/${sectionId}/latest.json`;
 }
 
 function revisionPath(eventId: string, sectionId: string, revisionId: string) {
-  return `meta/wiki/${eventId}/${sectionId}/revisions/${revisionId}.json`
+  return `meta/wiki/${eventId}/${sectionId}/revisions/${revisionId}.json`;
 }
 
 function revisionsIndexPath(eventId: string, sectionId: string) {
-  return `meta/wiki/${eventId}/${sectionId}/revisions/_index.json`
+  return `meta/wiki/${eventId}/${sectionId}/revisions/_index.json`;
 }
 
 export async function getSections(eventId: string): Promise<WikiSection[]> {
-  validateStoreId(eventId, "eventId")
-  return readPath<WikiSection[]>(sectionsPath(eventId), [])
+  validateStoreId(eventId, "eventId");
+  return readPath<WikiSection[]>(sectionsPath(eventId), []);
 }
 
 export async function getSectionContent(
   eventId: string,
-  sectionId: string
+  sectionId: string,
 ): Promise<WikiRevision | null> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  return readPath<WikiRevision | null>(latestPath(eventId, sectionId), null)
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
+  return readPath<WikiRevision | null>(latestPath(eventId, sectionId), null);
 }
 
 export async function getRevisionHistory(
   eventId: string,
-  sectionId: string
+  sectionId: string,
 ): Promise<WikiRevision[]> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  return readPath<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), [])
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
+  return readPath<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), []);
 }
 
 export async function getRevision(
   eventId: string,
   sectionId: string,
-  revisionId: string
+  revisionId: string,
 ): Promise<WikiRevision | null> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  validateStoreId(revisionId, "revisionId")
-  return readPath<WikiRevision | null>(revisionPath(eventId, sectionId, revisionId), null)
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
+  validateStoreId(revisionId, "revisionId");
+  return readPath<WikiRevision | null>(
+    revisionPath(eventId, sectionId, revisionId),
+    null,
+  );
 }
 
 export async function createSection(
@@ -94,13 +97,13 @@ export async function createSection(
   title: string,
   content: string,
   authorId: string,
-  authorName: string
+  authorName: string,
 ): Promise<{ section: WikiSection; revision: WikiRevision }> {
-  validateStoreId(eventId, "eventId")
+  validateStoreId(eventId, "eventId");
 
-  const sectionId = crypto.randomUUID()
-  const revisionId = crypto.randomUUID()
-  const now = new Date().toISOString()
+  const sectionId = crypto.randomUUID();
+  const revisionId = crypto.randomUUID();
+  const now = new Date().toISOString();
 
   const revision: WikiRevision = {
     id: revisionId,
@@ -115,7 +118,7 @@ export async function createSection(
     createdAt: now,
     action: "create",
     revertedFrom: null,
-  }
+  };
 
   const section: WikiSection = {
     id: sectionId,
@@ -125,18 +128,18 @@ export async function createSection(
     createdBy: authorId,
     createdAt: now,
     updatedAt: now,
-  }
+  };
 
-  await writePath(revisionPath(eventId, sectionId, revisionId), revision)
-  await writePath(revisionsIndexPath(eventId, sectionId), [revision])
-  await writePath(latestPath(eventId, sectionId), revision)
+  await writePath(revisionPath(eventId, sectionId, revisionId), revision);
+  await writePath(revisionsIndexPath(eventId, sectionId), [revision]);
+  await writePath(latestPath(eventId, sectionId), revision);
 
   await modifyJson<WikiSection[]>(sectionsPath(eventId), [], (sections) => [
     ...sections,
     section,
-  ])
+  ]);
 
-  return { section, revision }
+  return { section, revision };
 }
 
 export async function editSection(
@@ -144,13 +147,13 @@ export async function editSection(
   sectionId: string,
   content: string,
   authorId: string,
-  authorName: string
+  authorName: string,
 ): Promise<WikiRevision> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
 
-  const revisionId = crypto.randomUUID()
-  const now = new Date().toISOString()
+  const revisionId = crypto.randomUUID();
+  const now = new Date().toISOString();
 
   const revision: WikiRevision = {
     id: revisionId,
@@ -165,16 +168,17 @@ export async function editSection(
     createdAt: now,
     action: "edit",
     revertedFrom: null,
-  }
+  };
 
-  await writePath(revisionPath(eventId, sectionId, revisionId), revision)
+  await writePath(revisionPath(eventId, sectionId, revisionId), revision);
 
-  await modifyJson<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), [], (history) => [
-    ...history,
-    revision,
-  ])
+  await modifyJson<WikiRevision[]>(
+    revisionsIndexPath(eventId, sectionId),
+    [],
+    (history) => [...history, revision],
+  );
 
-  return revision
+  return revision;
 }
 
 export async function approveRevision(
@@ -182,33 +186,35 @@ export async function approveRevision(
   sectionId: string,
   revisionId: string,
   toxicityScore: number,
-  flags: string[] = []
+  flags: string[] = [],
 ): Promise<void> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  validateStoreId(revisionId, "revisionId")
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
+  validateStoreId(revisionId, "revisionId");
 
-  const revision = await getRevision(eventId, sectionId, revisionId)
-  if (!revision) return
+  const revision = await getRevision(eventId, sectionId, revisionId);
+  if (!revision) return;
 
-  revision.status = "approved"
-  revision.toxicityScore = toxicityScore
-  revision.moderationFlags = flags
+  revision.status = "approved";
+  revision.toxicityScore = toxicityScore;
+  revision.moderationFlags = flags;
 
-  await writePath(revisionPath(eventId, sectionId, revisionId), revision)
-  await writePath(latestPath(eventId, sectionId), revision)
+  await writePath(revisionPath(eventId, sectionId, revisionId), revision);
+  await writePath(latestPath(eventId, sectionId), revision);
 
-  await modifyJson<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), [], (history) =>
-    history.map((r) => (r.id === revisionId ? revision : r))
-  )
+  await modifyJson<WikiRevision[]>(
+    revisionsIndexPath(eventId, sectionId),
+    [],
+    (history) => history.map((r) => (r.id === revisionId ? revision : r)),
+  );
 
   await modifyJson<WikiSection[]>(sectionsPath(eventId), [], (sections) =>
     sections.map((s) =>
       s.id === sectionId
         ? { ...s, latestRevisionId: revisionId, updatedAt: revision.createdAt }
-        : s
-    )
-  )
+        : s,
+    ),
+  );
 }
 
 export async function revertSection(
@@ -216,17 +222,17 @@ export async function revertSection(
   sectionId: string,
   targetRevisionId: string,
   authorId: string,
-  authorName: string
+  authorName: string,
 ): Promise<WikiRevision | null> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  validateStoreId(targetRevisionId, "revisionId")
+  validateStoreId(eventId, "eventId");
+  validateStoreId(sectionId, "sectionId");
+  validateStoreId(targetRevisionId, "revisionId");
 
-  const target = await getRevision(eventId, sectionId, targetRevisionId)
-  if (!target || target.status !== "approved") return null
+  const target = await getRevision(eventId, sectionId, targetRevisionId);
+  if (!target || target.status !== "approved") return null;
 
-  const revisionId = crypto.randomUUID()
-  const now = new Date().toISOString()
+  const revisionId = crypto.randomUUID();
+  const now = new Date().toISOString();
 
   const revision: WikiRevision = {
     id: revisionId,
@@ -241,14 +247,15 @@ export async function revertSection(
     createdAt: now,
     action: "revert",
     revertedFrom: targetRevisionId,
-  }
+  };
 
-  await writePath(revisionPath(eventId, sectionId, revisionId), revision)
+  await writePath(revisionPath(eventId, sectionId, revisionId), revision);
 
-  await modifyJson<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), [], (history) => [
-    ...history,
-    revision,
-  ])
+  await modifyJson<WikiRevision[]>(
+    revisionsIndexPath(eventId, sectionId),
+    [],
+    (history) => [...history, revision],
+  );
 
-  return revision
+  return revision;
 }

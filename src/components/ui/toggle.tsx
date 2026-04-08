@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 
 const toggleVariants = cva(
   "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -9,7 +9,8 @@ const toggleVariants = cva(
     variants: {
       variant: {
         default: "bg-transparent",
-        outline: "border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
+        outline:
+          "border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
       },
       size: {
         default: "h-9 px-3 min-w-9",
@@ -21,14 +22,15 @@ const toggleVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 interface ToggleProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof toggleVariants> {
-  pressed?: boolean
-  onPressedChange?: (pressed: boolean) => void
+  pressed?: boolean;
+  onPressedChange?: (pressed: boolean) => void;
 }
 
 function Toggle({
@@ -48,15 +50,15 @@ function Toggle({
       className={cn(
         toggleVariants({ variant, size }),
         pressed && "bg-accent text-accent-foreground",
-        className
+        className,
       )}
       onClick={(e) => {
-        onClick?.(e)
-        onPressedChange?.(!pressed)
+        onClick?.(e);
+        onPressedChange?.(!pressed);
       }}
       {...props}
     />
-  )
+  );
 }
 
-export { Toggle, toggleVariants }
+export { Toggle, toggleVariants };
