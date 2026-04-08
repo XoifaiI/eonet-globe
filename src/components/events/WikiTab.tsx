@@ -71,9 +71,15 @@ export default function WikiTab({ eventId }: { eventId: string }) {
   }, [eventId])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchSections()
-  }, [fetchSections])
+    fetch(`/api/wiki/${encodeURIComponent(eventId)}`, { signal: controller.signal })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => { if (Array.isArray(data)) setSections(data) })
+      .catch(() => { if (!controller.signal.aborted) setSections([]) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [eventId])
 
   const handleCreateSection = useCallback(async () => {
     if (!user || !newTitle.trim() || !newContent.trim()) return

@@ -83,9 +83,15 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
     const existing = document.querySelector(`script[src*="accounts.google.com/gsi/client"]`)
     if (existing) {
       if (window.google) initGoogle()
-      else existing.addEventListener("load", initGoogle)
+      else {
+        existing.addEventListener("load", initGoogle)
+        return () => { existing.removeEventListener("load", initGoogle) }
+      }
       return
     }
+
+    let idleHandle: number | undefined
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
 
     const loadScript = () => {
       const script = document.createElement("script")
@@ -100,9 +106,14 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
     }
 
     if ("requestIdleCallback" in window) {
-      requestIdleCallback(loadScript, { timeout: IDLE_CALLBACK_TIMEOUT_MS })
+      idleHandle = requestIdleCallback(loadScript, { timeout: IDLE_CALLBACK_TIMEOUT_MS })
     } else {
-      setTimeout(loadScript, SCRIPT_LOAD_FALLBACK_DELAY_MS)
+      timeoutHandle = setTimeout(loadScript, SCRIPT_LOAD_FALLBACK_DELAY_MS)
+    }
+
+    return () => {
+      if (idleHandle !== undefined) cancelIdleCallback(idleHandle)
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
     }
   }, [handleCredentialResponse, buttonRef, user])
 

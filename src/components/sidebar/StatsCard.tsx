@@ -42,7 +42,7 @@ export default memo(function StatsCard() {
   const TopIcon = getCategoryIcon({ categories: [{ id: stats.topCategoryId, title: stats.topCategory }] } as EONETEvent)
 
   return (
-    <Card size="sm" className="absolute top-4 right-4 z-10 w-56 bg-background/95 backdrop-blur-md shadow-2xl hidden md:block">
+    <Card size="sm" className="absolute top-4 right-4 z-10 w-56 bg-background/95 backdrop-blur-md shadow-2xl hidden lg:block">
       <CardHeader>
         <div className="flex items-center gap-2">
           <Satellite className="h-3.5 w-3.5 text-green-500" />

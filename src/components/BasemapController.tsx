@@ -102,18 +102,25 @@ export default function BasemapController() {
       map.setStyle(style as maplibregl.StyleSpecification)
     }
 
-    const currentBasemap = basemap
-    map.once("idle", () => {
+    let cancelled = false
+    const onIdle = () => {
+      if (cancelled) return
       map.jumpTo({ center, zoom, bearing, pitch })
 
-      if (currentBasemap === "terrain") {
+      if (basemap === "terrain") {
         map.easeTo({ pitch: 60, duration: 1000 })
       } else if (pitch > 0) {
         map.easeTo({ pitch: 0, duration: 500 })
       }
 
       useStyleReady.setState((s) => ({ ready: true, version: s.version + 1 }))
-    })
+    }
+    map.once("idle", onIdle)
+
+    return () => {
+      cancelled = true
+      map.off("idle", onIdle)
+    }
   }, [basemap, map, isLoaded])
 
   return null

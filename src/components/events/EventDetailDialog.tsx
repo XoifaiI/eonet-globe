@@ -69,16 +69,18 @@ export default function EventDetailDialog() {
 
   useEffect(() => {
     if (!eventId) return
+    const controller = new AbortController()
     setLoadingImages(true)
     setImages([])
-    fetch(`/api/images/${encodeURIComponent(eventId)}`)
+    fetch(`/api/images/${encodeURIComponent(eventId)}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch images")
         return res.json()
       })
       .then((data) => { if (Array.isArray(data)) setImages(data) })
-      .catch(() => setImages([]))
-      .finally(() => setLoadingImages(false))
+      .catch(() => { if (!controller.signal.aborted) setImages([]) })
+      .finally(() => { if (!controller.signal.aborted) setLoadingImages(false) })
+    return () => controller.abort()
   }, [eventId])
 
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function EventDetailDialog() {
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) setDetailOpen(false) }}>
-        <DialogContent className="max-w-3xl w-[90vw] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0">
+        <DialogContent aria-describedby={undefined} className="max-w-3xl w-[90vw] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0">
           {illustration && (
             <div className="relative h-44 shrink-0" style={{ marginBottom: "-2px" }}>
               <img
