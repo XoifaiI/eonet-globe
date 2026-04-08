@@ -8,8 +8,9 @@ function jsonEtag(data: unknown): string {
   return `"${crypto.createHash("sha256").update(json).digest("hex")}"`
 }
 import { requireAuth, type AuthRequest } from "./auth.js"
-import { uploadProcessedImage, promoteFromQuarantine, downloadImage, deleteImage } from "./storage.js"
+import { uploadProcessedImage, downloadImage } from "./storage.js"
 import { processImage, moderateImage, SAFE_VALIDATION_ERRORS } from "./image-pipeline.js"
+import { containsDisallowedChars } from "./text-moderation.js"
 
 type ImageStatus = "processing" | "approved" | "rejected"
 
@@ -185,6 +186,12 @@ router.post(
       return
     }
 
+    const caption = sanitizeCaption(req.body.caption)
+    if (caption && containsDisallowedChars(caption)) {
+      res.status(400).json({ error: "Only standard Latin characters are allowed" })
+      return
+    }
+
     try {
       const processed = await processImage(
         req.file.buffer,
@@ -192,7 +199,15 @@ router.post(
         req.file.mimetype
       )
 
-      const { sizes, compressedSizes } = await uploadProcessedImage(processed, true)
+      if (ENABLE_MODERATION) {
+        const moderation = await moderateImage(processed.original)
+        if (!moderation.safe) {
+          res.status(403).json({ error: `Flagged for: ${moderation.flags.join(", ")}` })
+          return
+        }
+      }
+
+      const { sizes, compressedSizes } = await uploadProcessedImage(processed, false)
 
       const record: ImageRecord = {
         id: crypto.randomUUID(),
@@ -201,13 +216,13 @@ router.post(
         username: req.username!,
         filename: processed.filename,
         originalName: req.file.originalname.slice(0, 200),
-        caption: sanitizeCaption(req.body.caption),
+        caption,
         width: processed.width,
         height: processed.height,
         size: sizes.original,
         compressedSize: compressedSizes.original,
-        status: "processing",
-        moderationRating: null,
+        status: "approved",
+        moderationRating: 0,
         createdAt: new Date().toISOString(),
       }
 
@@ -223,10 +238,6 @@ router.post(
         return store
       })
 
-      runModeration(record, processed.original).catch((err) =>
-        console.error("Moderation failed for", record.id, err)
-      )
-
       res.status(201).json(publicRecord(record))
     } catch (err) {
       const message = err instanceof Error ? err.message : ""
@@ -237,46 +248,6 @@ router.post(
   }
 )
 
-async function runModeration(record: ImageRecord, imageBuffer: Buffer) {
-  if (!ENABLE_MODERATION) {
-    await promoteFromQuarantine(record.filename)
-    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
-      const current = store.records[record.id]
-      if (current) {
-        current.status = "approved"
-        current.moderationRating = 1
-      }
-      return store
-    })
-    return
-  }
-
-  const result = await moderateImage(imageBuffer)
-
-  if (result.safe) {
-    await promoteFromQuarantine(record.filename)
-    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
-      const current = store.records[record.id]
-      if (current) {
-        current.status = "approved"
-        current.moderationRating = result.flags.length
-      }
-      return store
-    })
-    console.log(`Image ${record.id} approved`)
-  } else {
-    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
-      const current = store.records[record.id]
-      if (current) {
-        current.status = "rejected"
-        current.moderationRating = result.flags.length
-      }
-      return store
-    })
-    await deleteImage(record.filename)
-    console.log(`Image ${record.id} rejected: ${result.flags.join(", ")}`)
-  }
-}
 
 export async function getExpiredImages(maxAgeDays: number): Promise<Array<{ id: string; filename: string; eventId: string }>> {
   const MS_PER_DAY = 86_400_000

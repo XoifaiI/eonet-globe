@@ -44,7 +44,6 @@ import {
   Ruler,
   Eye,
   Copy,
-  Loader2,
   FileText,
 } from "lucide-react"
 
@@ -88,42 +87,6 @@ export default function EventDetailDialog() {
     return () => clearTimeout(timer)
   }, [uploadSuccess])
 
-  const pollImageStatus = useCallback(
-    async (imageEventId: string, imageId: string) => {
-      const MAX_POLLS = 15
-      const POLL_INTERVAL = 2000
-
-      for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL))
-
-        try {
-          const res = await fetch(`/api/images/${encodeURIComponent(imageEventId)}`)
-          if (!res.ok) continue
-          const images = await res.json()
-          if (!Array.isArray(images)) continue
-
-          const found = images.find((img: { id: string }) => img.id === imageId)
-          if (found) {
-            setImages((prev) => {
-              const without = prev.filter((p) => p.id !== imageId)
-              return [...without, found]
-            })
-            toast.success("Photo approved", {
-              description: "Your photo is now visible to everyone",
-            })
-            return
-          }
-        } catch { /* continue polling */ }
-      }
-
-      setImages((prev) => prev.filter((p) => p.id !== imageId))
-      toast.error("Photo not approved", {
-        description: "Your image didn't pass content guidelines and was removed",
-      })
-    },
-    []
-  )
-
   const handleUpload = useCallback(async () => {
     if (!eventId || !user || !selectedFile) return
     setUploading(true)
@@ -154,23 +117,19 @@ export default function EventDetailDialog() {
       }
 
       const newImage = await res.json()
-      setImages((prev) => [...prev, { ...newImage, status: "processing" }])
+      setImages((prev) => [...prev, newImage])
       setCaption("")
       setSelectedFile(null)
       setUploadSuccess(true)
       if (fileInputRef.current) fileInputRef.current.value = ""
 
-      toast.info("Photo uploaded", {
-        description: "Your photo is being reviewed and will appear shortly",
-      })
-
-      pollImageStatus(eventId, newImage.id)
+      toast.success("Photo uploaded")
     } catch {
       setUploadError("Network error during upload")
     } finally {
       setUploading(false)
     }
-  }, [eventId, user, selectedFile, caption, pollImageStatus])
+  }, [eventId, user, selectedFile, caption])
 
   if (!selectedEvent) return null
 
@@ -382,43 +341,29 @@ export default function EventDetailDialog() {
 
                     {!loadingImages && images.length > 0 && (
                       <div className="grid grid-cols-4 gap-2">
-                        {images.map((img) => {
-                          const isProcessing = (img as { status?: string }).status === "processing"
-                          return (
+                        {images.map((img) => (
                             <button
                               key={img.id}
-                              onClick={() => !isProcessing && setPreviewImage(img)}
-                              className={`group relative rounded-lg overflow-hidden border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary ${
-                                isProcessing ? "opacity-60 cursor-wait" : "cursor-pointer"
-                              }`}
+                              onClick={() => setPreviewImage(img)}
+                              className="group relative rounded-lg overflow-hidden border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
                             >
-                              {isProcessing ? (
-                                <div className="w-full aspect-square bg-muted flex flex-col items-center justify-center gap-1.5">
-                                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                  <span className="text-[9px] text-muted-foreground">Reviewing...</span>
-                                </div>
-                              ) : (
-                                <>
-                                  <img
-                                    src={`/api/images/file/${encodeURIComponent(img.filename)}`}
-                                    alt={img.caption || "Event photo"}
-                                    className="w-full aspect-square object-cover transition-transform group-hover:scale-105"
-                                    loading="lazy"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                                    {img.caption && (
-                                      <p className="text-[10px] text-white truncate">{img.caption}</p>
-                                    )}
-                                    <p className="text-[10px] text-white/60">
-                                      {img.username} &middot; {timeAgo(img.createdAt)}
-                                    </p>
-                                  </div>
-                                </>
-                              )}
+                              <img
+                                src={`/api/images/file/${encodeURIComponent(img.filename)}`}
+                                alt={img.caption || "Event photo"}
+                                className="w-full aspect-square object-cover transition-transform group-hover:scale-105"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
+                                {img.caption && (
+                                  <p className="text-[10px] text-white truncate">{img.caption}</p>
+                                )}
+                                <p className="text-[10px] text-white/60">
+                                  {img.username} &middot; {timeAgo(img.createdAt)}
+                                </p>
+                              </div>
                             </button>
-                          )
-                        })}
+                        ))}
                       </div>
                     )}
                   </ScrollArea>
@@ -539,7 +484,7 @@ export default function EventDetailDialog() {
           )}
 
           {!user && (
-            <DialogFooter className="px-6 py-4 border-t">
+            <DialogFooter className="px-6 py-4 border-t sm:justify-center">
               <div className="flex items-center gap-2 text-sm text-muted-foreground w-full justify-center">
                 <Camera className="h-4 w-4" />
                 Sign in to upload photos to this event

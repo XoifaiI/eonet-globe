@@ -38,6 +38,7 @@ app.use(cors({
   credentials: true,
 }))
 
+app.set("trust proxy", 1)
 app.use(express.json({ limit: JSON_BODY_LIMIT }))
 app.disable("x-powered-by")
 
@@ -107,10 +108,10 @@ if (IS_PROD) {
       "Content-Security-Policy",
       [
         "default-src 'self'",
-        "script-src 'self' blob: https://accounts.google.com",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com",
-        "connect-src 'self' https://accounts.google.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com",
+        "script-src 'self' blob: 'sha256-ZswfTY7H35rbv8WC7NXBoiC7WNu86vSzCDChNWwZZDM=' https://accounts.google.com",
+        "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+        "img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com https://*.googleusercontent.com",
+        "connect-src 'self' https://accounts.google.com https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com",
         "worker-src blob:",
         "frame-src https://accounts.google.com",
         "font-src 'self'",

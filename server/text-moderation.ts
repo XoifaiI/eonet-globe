@@ -81,6 +81,12 @@ const WIKI_CONTENT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   disallowedTagsMode: "discard",
 }
 
+const ALLOWED_TEXT = /^[\x20-\x7E\n\r\t\u00A0-\u00FF]*$/
+
+export function containsDisallowedChars(text: string): boolean {
+  return !ALLOWED_TEXT.test(text)
+}
+
 export function sanitizeWikiContent(input: unknown): string {
   if (typeof input !== "string") return ""
   return sanitizeHtml(input.slice(0, 10_000), WIKI_CONTENT_SANITIZE_OPTIONS).trim()

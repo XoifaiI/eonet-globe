@@ -6,8 +6,8 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_GOOGLE_CLIENT_ID
-RUN VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID} npx vite build
+ENV VITE_GOOGLE_CLIENT_ID=363055381330-0plgi35mnbtnro700c87kn4gn2aegds1.apps.googleusercontent.com
+RUN npx vite build
 
 FROM node:24 AS production
 

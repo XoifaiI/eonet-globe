@@ -14,8 +14,6 @@ import {
 } from "@/components/ui/hover-card"
 import { useAuthStore } from "@/store/auth-store"
 import { timeAgo } from "@/lib/eonet"
-import { retryAsync } from "@/lib/retry-async"
-import { MAX_WIKI_POLLS } from "@/lib/constants"
 import { toast } from "sonner"
 import {
   Plus,
@@ -72,44 +70,6 @@ export default function WikiTab({ eventId }: { eventId: string }) {
     finally { setLoading(false) }
   }, [eventId])
 
-  const pollRevisionStatus = useCallback((sectionId: string, revisionId: string) => {
-    const url = `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/revision/${encodeURIComponent(revisionId)}/status`
-
-    retryAsync(
-      async () => {
-        const res = await fetch(url)
-        if (!res.ok) throw new Error("Fetch failed")
-        const data = await res.json()
-
-        if (data.status === "approved") {
-          toast.success("Edit approved", { description: "Your content is now visible" })
-          fetchSections()
-          return data
-        }
-
-        if (data.status === "rejected") {
-          const flags = (data.moderationFlags || []) as string[]
-          toast.error("Edit rejected", {
-            description: flags.length > 0
-              ? `Flagged for: ${flags.join(", ")}`
-              : "Content didn't pass moderation guidelines",
-          })
-          return data
-        }
-
-        throw new Error("Still pending")
-      },
-      {
-        maxAttempts: MAX_WIKI_POLLS,
-        pauseBase: 0,
-        pauseExponent: 1.2,
-        onFailure: () => {},
-      }
-    ).catch(() => {
-      toast.error("Review timeout", { description: "Your edit is still being reviewed" })
-    })
-  }, [eventId, fetchSections])
-
   useEffect(() => {
     setLoading(true)
     fetchSections()
@@ -125,19 +85,18 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         body: JSON.stringify({ title: newTitle, content: newContent }),
       })
       if (res.ok) {
-        const data = await res.json()
-        toast.info("Section submitted", { description: "Your edit is being reviewed" })
+        toast.success("Section added")
         setNewTitle("")
         setNewContent("")
         setNewSectionOpen(false)
-        pollRevisionStatus(data.section.id, data.revision.id)
+        fetchSections()
       } else {
         const data = await res.json()
         toast.error("Failed", { description: data.error })
       }
     } catch { toast.error("Network error") }
     finally { setSaving(false) }
-  }, [user, eventId, newTitle, newContent, fetchSections, pollRevisionStatus])
+  }, [user, eventId, newTitle, newContent, fetchSections])
 
   const handleEditSection = useCallback(async (sectionId: string) => {
     if (!user || !editContent.trim()) return
@@ -149,18 +108,17 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         body: JSON.stringify({ content: editContent }),
       })
       if (res.ok) {
-        const data = await res.json()
-        toast.info("Edit submitted", { description: "Your changes are being reviewed" })
+        toast.success("Edit saved")
         setEditingSection(null)
         setEditContent("")
-        pollRevisionStatus(sectionId, data.revision.id)
+        fetchSections()
       } else {
         const data = await res.json()
         toast.error("Failed", { description: data.error })
       }
     } catch { toast.error("Network error") }
     finally { setSaving(false) }
-  }, [user, eventId, editContent, fetchSections, pollRevisionStatus])
+  }, [user, eventId, editContent, fetchSections])
 
   const handleRevert = useCallback(async (sectionId: string, revisionId: string) => {
     if (!user) return
@@ -170,8 +128,8 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         { method: "POST", headers: { Authorization: `Bearer ${user.token}` } }
       )
       if (res.ok) {
-        toast.info("Revert submitted", { description: "Reverting to previous version" })
-        setTimeout(fetchSections, 3000)
+        toast.success("Reverted")
+        fetchSections()
       }
     } catch { toast.error("Network error") }
   }, [user, eventId, fetchSections])
@@ -218,7 +176,7 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         {sections.map((section) => (
           <Card key={section.id} size="sm">
             <CardHeader>
-              <CardTitle className="text-sm">{section.title}</CardTitle>
+              <CardTitle className="text-sm break-words">{section.title}</CardTitle>
               <CardAction>
                 <div className="flex items-center gap-1">
                   {user && (
@@ -259,6 +217,7 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                     value={editContent}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
                     placeholder="Write your edit..."
+                    maxLength={10000}
                     className="min-h-[100px] text-sm"
                   />
                   <div className="flex justify-end gap-2">
@@ -276,15 +235,9 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                 </div>
               ) : (
                 <>
-                  {section.content ? (
-                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                      {section.content}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      Content pending review...
-                    </p>
-                  )}
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words leading-relaxed">
+                    {section.content}
+                  </p>
                   {section.authorName && (
                     <p className="text-[10px] text-muted-foreground mt-2">
                       Last edited by {section.authorName} &middot; {timeAgo(section.updatedAt)}
@@ -388,12 +341,14 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                 placeholder="Section title..."
                 value={newTitle}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTitle(e.target.value)}
+                maxLength={200}
                 className="text-sm"
               />
               <Textarea
                 value={newContent}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewContent(e.target.value)}
                 placeholder="Write content for this section..."
+                maxLength={10000}
                 className="min-h-[120px] text-sm"
               />
               <div className="flex justify-end gap-2">

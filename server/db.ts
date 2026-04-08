@@ -116,5 +116,5 @@ export async function modifyJson<T>(
     }
   }
 
-  throw new Error("Failed to write after retries — concurrent modification conflict")
+  throw new Error("Failed to write after retries due to concurrent modification conflict")
 }

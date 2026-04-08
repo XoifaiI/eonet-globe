@@ -210,7 +210,7 @@ export const SAFE_VALIDATION_ERRORS = new Set([
   `Image exceeds ${MAX_PIXEL_BUDGET} pixel budget`,
 ])
 
-const UNSAFE_THRESHOLD = new Set(["LIKELY", "VERY_LIKELY"])
+const UNSAFE_THRESHOLD = new Set(["POSSIBLE", "LIKELY", "VERY_LIKELY"])
 
 let visionClient: InstanceType<typeof import("@google-cloud/vision").ImageAnnotatorClient> | null = null
 
@@ -228,23 +228,40 @@ export async function moderateImage(
   try {
     const client = await getVisionClient()
 
-    const [result] = await client.safeSearchDetection({ image: { content: buffer } })
-    const annotation = result.safeSearchAnnotation
+    const [result] = await client.annotateImage({
+      image: { content: buffer },
+      features: [
+        { type: "SAFE_SEARCH_DETECTION" },
+        { type: "TEXT_DETECTION" },
+      ],
+    })
 
+    const flags: string[] = []
+
+    const annotation = result.safeSearchAnnotation
     if (!annotation) {
       return { safe: false, flags: ["no_annotation"] }
     }
 
-    const flags: string[] = []
     const checks = {
       adult: annotation.adult,
       violence: annotation.violence,
       racy: annotation.racy,
+      medical: annotation.medical,
     } as Record<string, string | null | undefined>
 
     for (const [category, likelihood] of Object.entries(checks)) {
       if (likelihood && UNSAFE_THRESHOLD.has(likelihood)) {
         flags.push(category)
+      }
+    }
+
+    const extractedText = result.fullTextAnnotation?.text || ""
+    if (extractedText.trim().length >= 3) {
+      const { moderateText } = await import("./text-moderation.js")
+      const textResult = await moderateText(extractedText)
+      if (!textResult.safe) {
+        flags.push(...textResult.flags)
       }
     }
 

@@ -211,31 +211,6 @@ export async function approveRevision(
   )
 }
 
-export async function rejectRevision(
-  eventId: string,
-  sectionId: string,
-  revisionId: string,
-  toxicityScore: number,
-  flags: string[] = []
-): Promise<void> {
-  validateStoreId(eventId, "eventId")
-  validateStoreId(sectionId, "sectionId")
-  validateStoreId(revisionId, "revisionId")
-
-  const revision = await getRevision(eventId, sectionId, revisionId)
-  if (!revision) return
-
-  revision.status = "rejected"
-  revision.toxicityScore = toxicityScore
-  revision.moderationFlags = flags
-
-  await writePath(revisionPath(eventId, sectionId, revisionId), revision)
-
-  await modifyJson<WikiRevision[]>(revisionsIndexPath(eventId, sectionId), [], (history) =>
-    history.map((r) => (r.id === revisionId ? revision : r))
-  )
-}
-
 export async function revertSection(
   eventId: string,
   sectionId: string,

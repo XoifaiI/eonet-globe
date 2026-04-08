@@ -48,7 +48,11 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
   )
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || user) return
+    if (!GOOGLE_CLIENT_ID) {
+      console.error("VITE_GOOGLE_CLIENT_ID is not set, Google Sign-In disabled")
+      return
+    }
+    if (user) return
 
     function initGoogle() {
       if (initializedRef.current) return

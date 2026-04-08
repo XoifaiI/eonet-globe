@@ -4,14 +4,12 @@ import {
   getSections,
   getSectionContent,
   getRevisionHistory,
-  getRevision,
   createSection,
   editSection,
   revertSection,
   approveRevision,
-  rejectRevision,
 } from "./wiki-store.js"
-import { moderateText, sanitizeWikiContent, sanitizeWikiTitle } from "./text-moderation.js"
+import { moderateText, sanitizeWikiContent, sanitizeWikiTitle, containsDisallowedChars } from "./text-moderation.js"
 
 const router = Router()
 
@@ -36,7 +34,7 @@ router.get("/:eventId", async (req: AuthRequest, res: Response) => {
       const latest = await getSectionContent(eventId, section.id)
       return {
         ...section,
-        content: latest?.status === "approved" ? latest.content : "",
+        content: latest?.content || "",
         authorName: latest?.authorName || "",
       }
     })
@@ -59,28 +57,6 @@ router.get("/:eventId/:sectionId/history", async (req: AuthRequest, res: Respons
   res.json(approved)
 })
 
-router.get("/:eventId/:sectionId/revision/:revisionId/status", async (req: AuthRequest, res: Response) => {
-  const eventId = param(req.params.eventId)
-  const sectionId = param(req.params.sectionId)
-  const revisionId = param(req.params.revisionId)
-  if (!validateId(eventId) || !validateId(sectionId) || !validateId(revisionId)) {
-    res.status(400).json({ error: "Invalid ID" })
-    return
-  }
-
-  const revision = await getRevision(eventId, sectionId, revisionId)
-  if (!revision) {
-    res.status(404).json({ error: "Revision not found" })
-    return
-  }
-
-  res.json({
-    status: revision.status,
-    moderationFlags: revision.moderationFlags,
-    toxicityScore: revision.toxicityScore,
-  })
-})
-
 router.post("/:eventId", requireAuth, async (req: AuthRequest, res: Response) => {
   const eventId = param(req.params.eventId)
   if (!validateId(eventId)) {
@@ -91,19 +67,30 @@ router.post("/:eventId", requireAuth, async (req: AuthRequest, res: Response) =>
   const title = sanitizeWikiTitle(req.body.title)
   const content = sanitizeWikiContent(req.body.content)
 
-  if (!title || title.length < 2) {
-    res.status(400).json({ error: "Title must be at least 2 characters" })
+  if (!title || title.length < 2 || title.length > 200) {
+    res.status(400).json({ error: "Title must be 2 to 200 characters" })
     return
   }
 
-  if (!content || content.length < 10) {
-    res.status(400).json({ error: "Content must be at least 10 characters" })
+  if (!content || content.length < 10 || content.length > 10_000) {
+    res.status(400).json({ error: "Content must be 10 to 10,000 characters" })
+    return
+  }
+
+  if (containsDisallowedChars(title) || containsDisallowedChars(content)) {
+    res.status(400).json({ error: "Only standard Latin characters are allowed" })
     return
   }
 
   const sections = await getSections(eventId)
   if (sections.length >= 20) {
     res.status(400).json({ error: "Maximum 20 sections per event" })
+    return
+  }
+
+  const moderation = await moderateText(`${title}\n\n${content}`)
+  if (!moderation.safe) {
+    res.status(403).json({ error: `Flagged for: ${moderation.flags.join(", ")}` })
     return
   }
 
@@ -115,10 +102,7 @@ router.post("/:eventId", requireAuth, async (req: AuthRequest, res: Response) =>
     req.username!
   )
 
-  runModeration(eventId, section.id, revision.id, `${title}\n\n${content}`).catch((err) =>
-    console.error("Wiki moderation failed:", err)
-  )
-
+  await approveRevision(eventId, section.id, revision.id, moderation.toxicityScore, moderation.flags)
   res.status(201).json({ section, revision })
 })
 
@@ -131,8 +115,13 @@ router.put("/:eventId/:sectionId", requireAuth, async (req: AuthRequest, res: Re
   }
 
   const content = sanitizeWikiContent(req.body.content)
-  if (!content || content.length < 10) {
-    res.status(400).json({ error: "Content must be at least 10 characters" })
+  if (!content || content.length < 10 || content.length > 10_000) {
+    res.status(400).json({ error: "Content must be 10 to 10,000 characters" })
+    return
+  }
+
+  if (containsDisallowedChars(content)) {
+    res.status(400).json({ error: "Only standard Latin characters are allowed" })
     return
   }
 
@@ -148,6 +137,12 @@ router.put("/:eventId/:sectionId", requireAuth, async (req: AuthRequest, res: Re
     return
   }
 
+  const moderation = await moderateText(content)
+  if (!moderation.safe) {
+    res.status(403).json({ error: `Flagged for: ${moderation.flags.join(", ")}` })
+    return
+  }
+
   const revision = await editSection(
     eventId,
     sectionId,
@@ -156,10 +151,7 @@ router.put("/:eventId/:sectionId", requireAuth, async (req: AuthRequest, res: Re
     req.username!
   )
 
-  runModeration(eventId, sectionId, revision.id, content).catch((err) =>
-    console.error("Wiki moderation failed:", err)
-  )
-
+  await approveRevision(eventId, sectionId, revision.id, moderation.toxicityScore, moderation.flags)
   res.json({ revision })
 })
 
@@ -194,41 +186,9 @@ router.post(
       return
     }
 
-    runModeration(eventId, sectionId, revision.id, revision.content).catch((err) =>
-      console.error("Wiki moderation failed:", err)
-    )
-
+    await approveRevision(eventId, sectionId, revision.id, 0, [])
     res.json({ revision })
   }
 )
-
-const MODERATION_TIMEOUT = 30_000
-
-async function runModeration(
-  eventId: string,
-  sectionId: string,
-  revisionId: string,
-  content: string
-) {
-  try {
-    const result = await Promise.race([
-      moderateText(content),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Moderation timeout")), MODERATION_TIMEOUT)
-      ),
-    ])
-
-    if (result.safe) {
-      await approveRevision(eventId, sectionId, revisionId, result.toxicityScore, result.flags)
-      console.log(`Wiki revision ${revisionId} approved (score: ${result.toxicityScore.toFixed(2)})`)
-    } else {
-      await rejectRevision(eventId, sectionId, revisionId, result.toxicityScore, result.flags)
-      console.log(`Wiki revision ${revisionId} rejected: ${result.flags.join(", ")}`)
-    }
-  } catch (err) {
-    console.error(`Wiki moderation failed for ${revisionId}, auto-rejecting:`, err)
-    await rejectRevision(eventId, sectionId, revisionId, 1, ["moderation_error"]).catch(() => {})
-  }
-}
 
 export default router
