@@ -64,7 +64,7 @@ export default memo(function StatsCard() {
   return (
     <Card
       size="sm"
-      className="absolute top-4 right-4 z-10 w-56 bg-background/95 backdrop-blur-md shadow-2xl hidden lg:block"
+      className="absolute top-4 right-4 z-10 w-56 bg-background/95 backdrop-blur-md shadow-2xl hidden xl:block"
     >
       <CardHeader>
         <div className="flex items-center gap-2">

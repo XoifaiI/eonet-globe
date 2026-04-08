@@ -207,7 +207,7 @@ function FilterControls({ vertical }: { vertical?: boolean }) {
   }
 
   return (
-    <CardContent className="p-2 flex items-center gap-2">
+    <CardContent className="p-2 flex items-center gap-2 overflow-hidden">
       <div className="flex items-center gap-1.5 shrink-0">
         <Layers className="h-3 w-3 text-muted-foreground" />
         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -278,7 +278,7 @@ function FilterControls({ vertical }: { vertical?: boolean }) {
       </ToggleGroup>
       <Separator orientation="vertical" className="h-5" />
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-thin">
         {activeCategories.map((cat) => {
           const isActive = categoryFilter === cat.title;
           const color = CATEGORY_COLORS[cat.id] || DEFAULT_CATEGORY_COLOR;
@@ -288,7 +288,7 @@ function FilterControls({ vertical }: { vertical?: boolean }) {
               pressed={isActive}
               onPressedChange={() => handleToggle(cat.title)}
               size="sm"
-              className={`h-6 px-2 gap-1.5 text-[10px] ${categoryFilter && !isActive ? "opacity-40" : ""}`}
+              className={`h-6 px-2 gap-1.5 text-[10px] shrink-0 ${categoryFilter && !isActive ? "opacity-40" : ""}`}
             >
               <span
                 className="h-2 w-2 rounded-full shrink-0"
@@ -369,7 +369,7 @@ export default memo(function FilterBar() {
   return (
     <Card
       size="sm"
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-background/95 backdrop-blur-md shadow-2xl max-w-[calc(100vw-22rem)]"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-background/95 backdrop-blur-md shadow-2xl max-w-[calc(100vw-24rem)]"
     >
       <FilterControls />
     </Card>

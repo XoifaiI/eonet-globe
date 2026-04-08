@@ -336,7 +336,7 @@ export default function EventSidebar() {
   return (
     <Card
       size="sm"
-      className="absolute top-4 left-4 z-10 w-80 max-h-[calc(100vh-2rem)] flex flex-col bg-background/95 backdrop-blur-md shadow-2xl"
+      className="absolute top-4 left-4 z-10 w-80 max-h-[calc(100vh-5rem)] flex flex-col bg-background/95 backdrop-blur-md shadow-2xl"
     >
       <CardHeader>
         <div className="flex items-center gap-2">

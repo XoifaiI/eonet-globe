@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
+
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import {
   Upload,
   Calendar,
   ExternalLink,
-  MapPin,
   ImagePlus,
   CheckCircle,
   AlertCircle,
@@ -164,157 +163,98 @@ export default function EventDetailDialog() {
           aria-describedby={undefined}
           className="max-w-3xl w-[90vw] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0"
         >
-          {illustration && (
-            <div
-              className="relative h-44 shrink-0"
-              style={{ marginBottom: "-2px" }}
-            >
-              <img
-                src={illustration}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover rounded-t-xl"
-              />
-              <div className="absolute inset-0 rounded-t-xl bg-gradient-to-b from-black/30 to-popover" />
-              <div className="absolute -bottom-[2px] left-0 right-0 h-[4px] bg-popover" />
-              <div className="absolute bottom-3 left-5 flex gap-1.5">
+          <div className={`relative shrink-0 ${illustration ? "h-40 lg:h-52" : "pt-5"}`}>
+            {illustration && (
+              <>
+                <img
+                  src={illustration}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover rounded-t-xl"
+                />
+                <div className="absolute inset-0 rounded-t-xl bg-gradient-to-b from-black/20 via-black/40 to-popover" />
+              </>
+            )}
+            <div className={`${illustration ? "absolute inset-0 flex flex-col justify-end" : ""} px-5 pb-3`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
                 <Badge
-                  className="text-xs h-6 backdrop-blur-sm border-0"
-                  style={{ backgroundColor: `${color}cc`, color: "#fff" }}
+                  className="text-[10px] h-5 border-0 backdrop-blur-sm"
+                  style={illustration
+                    ? { backgroundColor: `${color}cc`, color: "#fff" }
+                    : { backgroundColor: `${color}20`, color, borderColor: `${color}30` }
+                  }
                 >
-                  <Icon className="h-3 w-3 mr-1" />
+                  <Icon className="h-2.5 w-2.5 mr-0.5" />
                   {selectedEvent.categories[0]?.title}
                 </Badge>
                 {isOpen ? (
-                  <Badge className="text-xs h-6 bg-green-600/90 text-white backdrop-blur-sm border-0">
+                  <Badge className={`text-[10px] h-5 border-0 backdrop-blur-sm ${illustration ? "bg-green-600/90 text-white" : "bg-green-500/10 text-green-500"}`}>
                     Active
                   </Badge>
                 ) : (
-                  <Badge className="text-xs h-6 bg-muted/80 text-muted-foreground backdrop-blur-sm border-0">
+                  <Badge className={`text-[10px] h-5 border-0 backdrop-blur-sm ${illustration ? "bg-black/40 text-white/80" : "bg-muted text-muted-foreground"}`}>
                     Closed{" "}
                     {selectedEvent.closed &&
                       `on ${new Date(selectedEvent.closed).toLocaleDateString()}`}
                   </Badge>
                 )}
               </div>
-            </div>
-          )}
-
-          <DialogHeader className="px-5 pt-4 pb-0">
-            <DialogTitle className="text-base leading-snug pr-8">
-              {selectedEvent.title}
-            </DialogTitle>
-            <DialogDescription className="flex items-center gap-3 text-xs">
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {formatEventDate(selectedEvent)}
-              </span>
-              {latestGeo && (
-                <span className="text-muted-foreground/60">
-                  {timeAgo(latestGeo.date)}
-                </span>
-              )}
-              {coords && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`,
-                    );
-                  }}
-                  className="h-auto p-0 gap-1 text-muted-foreground hover:text-foreground"
-                  title="Copy coordinates"
-                >
-                  <Copy className="h-3 w-3" />
-                  {coords[1].toFixed(3)}, {coords[0].toFixed(3)}
-                </Button>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {!illustration && (
-            <div className="px-5 pt-2 flex gap-1.5">
-              <Badge
-                className="text-xs h-6"
-                style={{
-                  backgroundColor: `${color}20`,
-                  color,
-                  borderColor: `${color}30`,
-                }}
-              >
-                <Icon className="h-3 w-3 mr-1" />
-                {selectedEvent.categories[0]?.title}
-              </Badge>
-              {isOpen ? (
-                <Badge className="text-xs h-6 bg-green-500/10 text-green-500 border-green-500/20">
-                  Active
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs h-6">
-                  Closed
-                </Badge>
-              )}
-            </div>
-          )}
-
-          <div className="px-5 pt-3">
-            <div className="flex flex-wrap gap-2">
-              {latestGeo?.magnitudeValue && (
-                <Badge
-                  variant="outline"
-                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
-                >
-                  <Ruler className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold tabular-nums">
-                    {latestGeo.magnitudeValue}
+              <DialogHeader className="p-0">
+                <DialogTitle className={`text-sm leading-snug pr-8 ${illustration ? "text-white" : ""}`}>
+                  {selectedEvent.title}
+                </DialogTitle>
+                <DialogDescription className={`flex items-center gap-2 text-[11px] flex-wrap ${illustration ? "text-white/70" : ""}`}>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-2.5 w-2.5" />
+                    {formatEventDate(selectedEvent)}
                   </span>
-                  <span className="text-muted-foreground">
-                    {latestGeo.magnitudeUnit}
-                  </span>
-                </Badge>
-              )}
-              {coords && (
-                <Badge
-                  variant="outline"
-                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
-                >
-                  <MapPin className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold font-mono tabular-nums">
-                    {coords[1].toFixed(3)}, {coords[0].toFixed(3)}
-                  </span>
-                </Badge>
-              )}
-              {duration !== null && duration > 0 && (
-                <Badge
-                  variant="outline"
-                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
-                >
-                  <Clock className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold tabular-nums">{duration}</span>
-                  <span className="text-muted-foreground">
-                    {duration === 1 ? "day" : "days"}
-                  </span>
-                </Badge>
-              )}
-              {observationCount > 1 && (
-                <Badge
-                  variant="outline"
-                  className="h-auto py-1.5 px-3 gap-2 text-xs font-normal"
-                >
-                  <Eye className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-semibold tabular-nums">
-                    {observationCount}
-                  </span>
-                  <span className="text-muted-foreground">observations</span>
-                </Badge>
-              )}
+                  {latestGeo && (
+                    <span className={illustration ? "text-white/50" : "text-muted-foreground/60"}>
+                      {timeAgo(latestGeo.date)}
+                    </span>
+                  )}
+                  {coords && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`,
+                        );
+                      }}
+                      className={`h-auto p-0 gap-1 ${illustration ? "text-white/70 hover:text-white" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Copy coordinates"
+                    >
+                      <Copy className="h-2.5 w-2.5" />
+                      {coords[1].toFixed(3)}, {coords[0].toFixed(3)}
+                    </Button>
+                  )}
+                  {latestGeo?.magnitudeValue && (
+                    <span className="inline-flex items-center gap-1">
+                      <Ruler className="h-2.5 w-2.5" />
+                      {latestGeo.magnitudeValue} {latestGeo.magnitudeUnit}
+                    </span>
+                  )}
+                  {duration !== null && duration > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-2.5 w-2.5" />
+                      {duration} {duration === 1 ? "day" : "days"}
+                    </span>
+                  )}
+                  {observationCount > 1 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Eye className="h-2.5 w-2.5" />
+                      {observationCount} observations
+                    </span>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
             </div>
           </div>
 
-          <div className="px-5 pt-3 pb-4 flex-1 overflow-hidden flex flex-col">
+          <div className="px-5 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
             <Tabs
               defaultValue="photos"
-              className="flex-1 flex flex-col overflow-hidden"
+              className="flex-1 min-h-0 flex flex-col"
             >
               <TabsList className="w-full justify-start h-9">
                 <TabsTrigger value="photos" className="text-xs gap-1.5">
@@ -345,7 +285,7 @@ export default function EventDetailDialog() {
 
               <TabsContent
                 value="photos"
-                className="flex-1 overflow-hidden mt-3"
+                className="flex-1 min-h-0 overflow-y-auto mt-3"
               >
                 {previewImage ? (
                   <div className="h-full flex flex-col">
@@ -441,13 +381,78 @@ export default function EventDetailDialog() {
                     )}
                   </ScrollArea>
                 )}
+
+                {user && (
+                  <div className="mt-3 space-y-2">
+                    {uploadSuccess && (
+                      <Alert className="bg-green-500/10 border-green-500/20">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <AlertDescription className="text-xs text-green-500">
+                          Photo uploaded!
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {uploadError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          {uploadError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          const check = await loadAndValidateImage(file);
+                          if (!check.valid) {
+                            setUploadError(check.error || "Invalid image");
+                            return;
+                          }
+                        }
+                        setUploadError("");
+                        setSelectedFile(file);
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 shrink-0"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {selectedFile ? selectedFile.name : "Choose Photo"}
+                      </Button>
+                      <Input
+                        placeholder="Add a caption..."
+                        value={caption}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setCaption(e.target.value)
+                        }
+                        className="flex-1 h-8 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={uploading || !selectedFile}
+                        onClick={handleUpload}
+                      >
+                        {uploading ? "Uploading..." : "Upload"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
-              <TabsContent value="wiki" className="flex-1 overflow-hidden mt-3">
+              <TabsContent value="wiki" className="flex-1 min-h-0 overflow-y-auto mt-3">
                 <WikiTab eventId={selectedEvent.id} />
               </TabsContent>
 
-              <TabsContent value="sources" className="mt-3 pb-2">
+              <TabsContent value="sources" className="flex-1 min-h-0 overflow-y-auto mt-3 pb-2">
                 <div className="space-y-2">
                   {selectedEvent.sources.map((source) => (
                     <a
@@ -497,77 +502,7 @@ export default function EventDetailDialog() {
             </Tabs>
           </div>
 
-          {user && (
-            <DialogFooter className="px-6 py-5 border-t gap-3">
-              {uploadSuccess && (
-                <Alert className="bg-green-500/10 border-green-500/20 w-full">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <AlertDescription className="text-xs text-green-500">
-                    Photo uploaded!
-                  </AlertDescription>
-                </Alert>
-              )}
-              {uploadError && (
-                <Alert variant="destructive" className="w-full">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    {uploadError}
-                  </AlertDescription>
-                </Alert>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0] || null;
-                  if (file) {
-                    const check = await loadAndValidateImage(file);
-                    if (!check.valid) {
-                      setUploadError(check.error || "Invalid image");
-                      return;
-                    }
-                  }
-                  setUploadError("");
-                  setSelectedFile(file);
-                }}
-              />
-              <div className="flex items-center gap-2 w-full">
-                <Button
-                  variant="outline"
-                  className="gap-2 shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" />
-                  {selectedFile ? selectedFile.name : "Choose Photo"}
-                </Button>
-                <Input
-                  placeholder="Add a caption..."
-                  value={caption}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCaption(e.target.value)
-                  }
-                  className="flex-1"
-                />
-                <Button
-                  disabled={uploading || !selectedFile}
-                  onClick={handleUpload}
-                >
-                  {uploading ? "Uploading..." : "Upload"}
-                </Button>
-              </div>
-            </DialogFooter>
-          )}
 
-          {!user && (
-            <DialogFooter className="px-6 py-4 border-t sm:justify-center">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground w-full justify-center">
-                <Camera className="h-4 w-4" />
-                Sign in to upload photos to this event
-              </div>
-            </DialogFooter>
-          )}
         </DialogContent>
       </Dialog>
     </>

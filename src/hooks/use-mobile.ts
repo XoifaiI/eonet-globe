@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-const MOBILE_BREAKPOINT = 1024;
+const MOBILE_BREAKPOINT = 1280;
 
 function subscribe(callback: () => void) {
   const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
@@ -9,7 +9,7 @@ function subscribe(callback: () => void) {
 }
 
 function getSnapshot() {
-  return window.innerWidth < MOBILE_BREAKPOINT;
+  return window.innerWidth <= MOBILE_BREAKPOINT;
 }
 
 function getServerSnapshot() {
