@@ -1,5 +1,11 @@
 import { useEffect, useCallback, useRef } from "react"
 import { useAuthStore } from "@/store/auth-store"
+import {
+  GOOGLE_GSI_SCRIPT_URL,
+  GOOGLE_BUTTON_WIDTH,
+  IDLE_CALLBACK_TIMEOUT_MS,
+  SCRIPT_LOAD_FALLBACK_DELAY_MS,
+} from "@/lib/constants"
 import type { GoogleCredentialResponse } from "@/types"
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ""
@@ -35,13 +41,8 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ credential: response.credential }),
         })
-
-        if (res.ok) {
-          setUser(await res.json())
-        }
-      } catch {
-        // silently handle
-      }
+        if (res.ok) setUser(await res.json())
+      } catch { /* silently handle */ }
     },
     [setUser]
   )
@@ -63,7 +64,7 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
         window.google?.accounts.id.renderButton(buttonRef.current, {
           theme: "filled_black",
           size: "large",
-          width: 240,
+          width: GOOGLE_BUTTON_WIDTH,
           shape: "pill",
           text: "signin_with",
         })
@@ -75,7 +76,7 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
       return
     }
 
-    const existing = document.querySelector('script[src*="accounts.google.com/gsi/client"]')
+    const existing = document.querySelector(`script[src*="accounts.google.com/gsi/client"]`)
     if (existing) {
       if (window.google) initGoogle()
       else existing.addEventListener("load", initGoogle)
@@ -84,7 +85,7 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
 
     const loadScript = () => {
       const script = document.createElement("script")
-      script.src = "https://accounts.google.com/gsi/client"
+      script.src = GOOGLE_GSI_SCRIPT_URL
       script.async = true
       script.defer = true
       script.onload = () => {
@@ -95,9 +96,9 @@ export function useGoogleAuth(buttonRef: React.RefObject<HTMLDivElement | null>)
     }
 
     if ("requestIdleCallback" in window) {
-      requestIdleCallback(loadScript, { timeout: 3000 })
+      requestIdleCallback(loadScript, { timeout: IDLE_CALLBACK_TIMEOUT_MS })
     } else {
-      setTimeout(loadScript, 1000)
+      setTimeout(loadScript, SCRIPT_LOAD_FALLBACK_DELAY_MS)
     }
   }, [handleCredentialResponse, buttonRef, user])
 

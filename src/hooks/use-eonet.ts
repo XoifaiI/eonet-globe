@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useEventStore } from "@/store/event-store"
+import { retryAsync } from "@/lib/retry-async"
 
 const EONET_ENDPOINT = "/api/eonet/events"
 
@@ -8,15 +9,19 @@ let cached: Promise<unknown[]> | null = null
 function fetchEvents(): Promise<unknown[]> {
   if (cached) return cached
 
-  cached = (async () => {
-    const res = await fetch(EONET_ENDPOINT)
-    if (!res.ok) {
-      cached = null
-      throw new Error(`EONET API returned ${res.status}`)
+  cached = retryAsync(
+    async () => {
+      const res = await fetch(EONET_ENDPOINT)
+      if (!res.ok) throw new Error("Unable to load events. NASA EONET may be temporarily unavailable.")
+      const data = await res.json()
+      return data.events as unknown[]
+    },
+    {
+      maxAttempts: 3,
+      pauseBase: 3,
+      pauseExponent: 2,
     }
-    const data = await res.json()
-    return data.events
-  })()
+  )
 
   cached.catch(() => { cached = null })
   return cached
@@ -34,7 +39,7 @@ export function useEONET() {
 
     fetchEvents()
       .then((events) => { if (!cancelled) setEvents(events as ReturnType<typeof useEventStore.getState>["events"]) })
-      .catch((err) => { if (!cancelled) setError(err.message) })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load events") })
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }

@@ -2,6 +2,7 @@ import { useRef, lazy, Suspense } from "react"
 import { Map, MapControls, type MapRef } from "@/components/ui/map"
 import { Toaster } from "@/components/ui/sonner"
 import { useEONET } from "@/hooks/use-eonet"
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/constants"
 import FlyToHandler from "@/components/map/FlyToHandler"
 import SelectedEventPopup from "@/components/map/SelectedEventPopup"
 import EventClusterLayer from "@/components/EventClusterLayer"
@@ -18,7 +19,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen dark">
-      <Map ref={mapRef} center={[10, 20]} zoom={2} className="h-full w-full">
+      <Map ref={mapRef} center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} className="h-full w-full">
         <MapControls position="bottom-right" showZoom showCompass showFullscreen />
         <BasemapController />
         <FlyToHandler />

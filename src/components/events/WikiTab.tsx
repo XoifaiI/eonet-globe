@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/hover-card"
 import { useAuthStore } from "@/store/auth-store"
 import { timeAgo } from "@/lib/eonet"
+import { retryAsync } from "@/lib/retry-async"
+import { MAX_WIKI_POLLS } from "@/lib/constants"
 import { toast } from "sonner"
 import {
   Plus,
@@ -70,6 +72,44 @@ export default function WikiTab({ eventId }: { eventId: string }) {
     finally { setLoading(false) }
   }, [eventId])
 
+  const pollRevisionStatus = useCallback((sectionId: string, revisionId: string) => {
+    const url = `/api/wiki/${encodeURIComponent(eventId)}/${encodeURIComponent(sectionId)}/revision/${encodeURIComponent(revisionId)}/status`
+
+    retryAsync(
+      async () => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error("Fetch failed")
+        const data = await res.json()
+
+        if (data.status === "approved") {
+          toast.success("Edit approved", { description: "Your content is now visible" })
+          fetchSections()
+          return data
+        }
+
+        if (data.status === "rejected") {
+          const flags = (data.moderationFlags || []) as string[]
+          toast.error("Edit rejected", {
+            description: flags.length > 0
+              ? `Flagged for: ${flags.join(", ")}`
+              : "Content didn't pass moderation guidelines",
+          })
+          return data
+        }
+
+        throw new Error("Still pending")
+      },
+      {
+        maxAttempts: MAX_WIKI_POLLS,
+        pauseBase: 0,
+        pauseExponent: 1.2,
+        onFailure: () => {},
+      }
+    ).catch(() => {
+      toast.error("Review timeout", { description: "Your edit is still being reviewed" })
+    })
+  }, [eventId, fetchSections])
+
   useEffect(() => {
     setLoading(true)
     fetchSections()
@@ -85,18 +125,19 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         body: JSON.stringify({ title: newTitle, content: newContent }),
       })
       if (res.ok) {
+        const data = await res.json()
         toast.info("Section submitted", { description: "Your edit is being reviewed" })
         setNewTitle("")
         setNewContent("")
         setNewSectionOpen(false)
-        setTimeout(fetchSections, 3000)
+        pollRevisionStatus(data.section.id, data.revision.id)
       } else {
         const data = await res.json()
         toast.error("Failed", { description: data.error })
       }
     } catch { toast.error("Network error") }
     finally { setSaving(false) }
-  }, [user, eventId, newTitle, newContent, fetchSections])
+  }, [user, eventId, newTitle, newContent, fetchSections, pollRevisionStatus])
 
   const handleEditSection = useCallback(async (sectionId: string) => {
     if (!user || !editContent.trim()) return
@@ -108,17 +149,18 @@ export default function WikiTab({ eventId }: { eventId: string }) {
         body: JSON.stringify({ content: editContent }),
       })
       if (res.ok) {
+        const data = await res.json()
         toast.info("Edit submitted", { description: "Your changes are being reviewed" })
         setEditingSection(null)
         setEditContent("")
-        setTimeout(fetchSections, 3000)
+        pollRevisionStatus(sectionId, data.revision.id)
       } else {
         const data = await res.json()
         toast.error("Failed", { description: data.error })
       }
     } catch { toast.error("Network error") }
     finally { setSaving(false) }
-  }, [user, eventId, editContent, fetchSections])
+  }, [user, eventId, editContent, fetchSections, pollRevisionStatus])
 
   const handleRevert = useCallback(async (sectionId: string, revisionId: string) => {
     if (!user) return

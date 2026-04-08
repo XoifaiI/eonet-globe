@@ -1,11 +1,7 @@
+import { IMAGE_VALIDATION } from "@/lib/constants"
+
 const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"])
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const MIN_FILE_SIZE = 1024
-const MAX_DIMENSION = 8192
-const MIN_DIMENSION = 10
-const MAX_PIXEL_BUDGET = 25_000_000
-const MAX_ASPECT_RATIO = 10
 
 export interface ClientValidationResult {
   valid: boolean
@@ -15,7 +11,7 @@ export interface ClientValidationResult {
 export function validateFile(file: File): ClientValidationResult {
   const ext = "." + file.name.split(".").pop()?.toLowerCase()
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return { valid: false, error: `Only JPG, PNG, and WebP files are accepted` }
+    return { valid: false, error: "Only JPG, PNG, and WebP files are accepted" }
   }
 
   if (file.name.split(".").length > 2) {
@@ -26,35 +22,32 @@ export function validateFile(file: File): ClientValidationResult {
     return { valid: false, error: `File type ${file.type || "unknown"} is not accepted` }
   }
 
-  if (file.size < MIN_FILE_SIZE) {
+  if (file.size < IMAGE_VALIDATION.minFileSize) {
     return { valid: false, error: "File is too small to be a real image" }
   }
 
-  if (file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit` }
+  if (file.size > IMAGE_VALIDATION.maxFileSize) {
+    return { valid: false, error: `File exceeds ${IMAGE_VALIDATION.maxFileSize / 1024 / 1024}MB limit` }
   }
 
   return { valid: true }
 }
 
-export function validateImageDimensions(
-  width: number,
-  height: number
-): ClientValidationResult {
-  if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
-    return { valid: false, error: `Image must be at least ${MIN_DIMENSION}x${MIN_DIMENSION}px` }
+export function validateImageDimensions(width: number, height: number): ClientValidationResult {
+  if (width < IMAGE_VALIDATION.minDimension || height < IMAGE_VALIDATION.minDimension) {
+    return { valid: false, error: `Image must be at least ${IMAGE_VALIDATION.minDimension}x${IMAGE_VALIDATION.minDimension}px` }
   }
 
-  if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-    return { valid: false, error: `Image exceeds ${MAX_DIMENSION}px dimension limit` }
+  if (width > IMAGE_VALIDATION.maxDimension || height > IMAGE_VALIDATION.maxDimension) {
+    return { valid: false, error: `Image exceeds ${IMAGE_VALIDATION.maxDimension}px dimension limit` }
   }
 
-  if (width * height > MAX_PIXEL_BUDGET) {
+  if (width * height > IMAGE_VALIDATION.maxPixelBudget) {
     return { valid: false, error: "Image has too many pixels" }
   }
 
   const ratio = Math.max(width / height, height / width)
-  if (ratio > MAX_ASPECT_RATIO) {
+  if (ratio > IMAGE_VALIDATION.maxAspectRatio) {
     return { valid: false, error: "Image has extreme aspect ratio" }
   }
 

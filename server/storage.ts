@@ -2,8 +2,9 @@ import { Storage } from "@google-cloud/storage"
 import crypto from "crypto"
 import zstd from "zstd-napi"
 import type { ProcessedImage } from "./image-pipeline.js"
+import { DEFAULT_GCS_BUCKET } from "./constants.js"
 
-const BUCKET_NAME = process.env.GCS_BUCKET || "eonet-globe-images"
+const BUCKET_NAME = process.env.GCS_BUCKET || DEFAULT_GCS_BUCKET
 const ZSTD_LEVEL = 10
 
 const storage = new Storage(
@@ -75,14 +76,18 @@ export async function promoteFromQuarantine(filename: string): Promise<void> {
   )
 }
 
-const IMAGE_CACHE_MAX = 200
+const IMAGE_CACHE_MAX_BYTES = Number(process.env.IMAGE_CACHE_MAX_MB || 128) * 1024 * 1024
 const imageCache = new Map<string, { buffer: Buffer; etag: string; accessedAt: number }>()
+let cacheBytes = 0
 
 function evictCache() {
-  if (imageCache.size <= IMAGE_CACHE_MAX) return
+  if (cacheBytes <= IMAGE_CACHE_MAX_BYTES) return
   const entries = [...imageCache.entries()].sort((a, b) => a[1].accessedAt - b[1].accessedAt)
-  const toRemove = entries.slice(0, entries.length - IMAGE_CACHE_MAX)
-  for (const [key] of toRemove) imageCache.delete(key)
+  for (const [key, entry] of entries) {
+    if (cacheBytes <= IMAGE_CACHE_MAX_BYTES) break
+    cacheBytes -= entry.buffer.length
+    imageCache.delete(key)
+  }
 }
 
 export async function downloadImage(
@@ -101,6 +106,7 @@ export async function downloadImage(
   const buffer = zstd.decompress(compressed)
   const etag = `"${crypto.createHash("sha256").update(buffer).digest("hex")}"`
 
+  cacheBytes += buffer.length
   imageCache.set(cacheKey, { buffer, etag, accessedAt: Date.now() })
   evictCache()
 

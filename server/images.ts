@@ -1,7 +1,7 @@
 import { Router, type Response } from "express"
 import multer from "multer"
 import crypto from "crypto"
-import { read, write } from "./db.js"
+import { readPath, modifyJson } from "./db.js"
 
 function jsonEtag(data: unknown): string {
   const json = JSON.stringify(data)
@@ -9,7 +9,7 @@ function jsonEtag(data: unknown): string {
 }
 import { requireAuth, type AuthRequest } from "./auth.js"
 import { uploadProcessedImage, promoteFromQuarantine, downloadImage, deleteImage } from "./storage.js"
-import { processImage, moderateImage } from "./image-pipeline.js"
+import { processImage, moderateImage, SAFE_VALIDATION_ERRORS } from "./image-pipeline.js"
 
 type ImageStatus = "processing" | "approved" | "rejected"
 
@@ -36,9 +36,19 @@ interface ImageStore {
   records: Record<string, ImageRecord>
 }
 
+const STORE_PATH = "meta/images-v2.json"
+const EMPTY_STORE: ImageStore = { byEvent: {}, byDate: [], records: {} }
+
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 const MAX_FILES_PER_UPLOAD = 1
-const ENABLE_MODERATION = process.env.ENABLE_MODERATION !== "false"
+
+const ENABLE_MODERATION = !["false", "0", "no"].includes(
+  (process.env.ENABLE_MODERATION || "true").toLowerCase()
+)
+
+if (!ENABLE_MODERATION) {
+  console.warn("WARNING: Image moderation is DISABLED via ENABLE_MODERATION env var")
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -61,15 +71,11 @@ const upload = multer({
 const router = Router()
 
 async function getStore(): Promise<ImageStore> {
-  const store = await read<ImageStore>("images-v2", { byEvent: {}, byDate: [], records: {} })
+  const store = await readPath<ImageStore>(STORE_PATH, EMPTY_STORE)
   if (!store.byEvent) store.byEvent = {}
   if (!store.byDate) store.byDate = []
   if (!store.records) store.records = {}
   return store
-}
-
-async function saveStore(store: ImageStore): Promise<void> {
-  await write("images-v2", store)
 }
 
 function param(value: string | string[] | undefined): string {
@@ -179,24 +185,6 @@ router.post(
       return
     }
 
-    const origin = req.headers.origin || ""
-    if (origin) {
-      const allowed = new Set([
-        "http://localhost:5173",
-        "http://localhost:4173",
-        process.env.CORS_ORIGIN || "",
-      ].filter(Boolean))
-      try {
-        if (!allowed.has(new URL(origin).origin)) {
-          res.status(403).json({ error: "Invalid origin" })
-          return
-        }
-      } catch {
-        res.status(403).json({ error: "Invalid origin" })
-        return
-      }
-    }
-
     try {
       const processed = await processImage(
         req.file.buffer,
@@ -223,12 +211,17 @@ router.post(
         createdAt: new Date().toISOString(),
       }
 
-      const store = await getStore()
-      store.records[record.id] = record
-      if (!store.byEvent[eventId]) store.byEvent[eventId] = []
-      store.byEvent[eventId].push(record.id)
-      store.byDate.push(record.id)
-      await saveStore(store)
+      await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
+        if (!store.byEvent) store.byEvent = {}
+        if (!store.byDate) store.byDate = []
+        if (!store.records) store.records = {}
+
+        store.records[record.id] = record
+        if (!store.byEvent[eventId]) store.byEvent[eventId] = []
+        store.byEvent[eventId].push(record.id)
+        store.byDate.push(record.id)
+        return store
+      })
 
       runModeration(record, processed.original).catch((err) =>
         console.error("Moderation failed for", record.id, err)
@@ -236,9 +229,9 @@ router.post(
 
       res.status(201).json(publicRecord(record))
     } catch (err) {
-      console.error("Upload processing failed:", err)
+      const message = err instanceof Error ? err.message : ""
       res.status(400).json({
-        error: err instanceof Error ? err.message : "Upload processing failed",
+        error: SAFE_VALIDATION_ERRORS.has(message) ? message : "Image processing failed",
       })
     }
   }
@@ -247,31 +240,39 @@ router.post(
 async function runModeration(record: ImageRecord, imageBuffer: Buffer) {
   if (!ENABLE_MODERATION) {
     await promoteFromQuarantine(record.filename)
-    const store = await getStore()
-    const current = store.records[record.id]
-    if (!current) return
-    current.status = "approved"
-    current.moderationRating = 1
-    await saveStore(store)
+    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
+      const current = store.records[record.id]
+      if (current) {
+        current.status = "approved"
+        current.moderationRating = 1
+      }
+      return store
+    })
     return
   }
 
   const result = await moderateImage(imageBuffer)
 
-  const store = await getStore()
-  const current = store.records[record.id]
-  if (!current) return
-
-  current.moderationRating = result.flags.length
-
   if (result.safe) {
     await promoteFromQuarantine(record.filename)
-    current.status = "approved"
-    await saveStore(store)
+    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
+      const current = store.records[record.id]
+      if (current) {
+        current.status = "approved"
+        current.moderationRating = result.flags.length
+      }
+      return store
+    })
     console.log(`Image ${record.id} approved`)
   } else {
-    current.status = "rejected"
-    await saveStore(store)
+    await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
+      const current = store.records[record.id]
+      if (current) {
+        current.status = "rejected"
+        current.moderationRating = result.flags.length
+      }
+      return store
+    })
     await deleteImage(record.filename)
     console.log(`Image ${record.id} rejected: ${result.flags.join(", ")}`)
   }
@@ -295,23 +296,24 @@ export async function getExpiredImages(maxAgeDays: number): Promise<Array<{ id: 
 
 export async function removeImageRecords(ids: string[]) {
   if (ids.length === 0) return
-  const store = await getStore()
   const idSet = new Set(ids)
 
-  for (const id of ids) {
-    const record = store.records[id]
-    if (record) {
-      const eventIds = store.byEvent[record.eventId]
-      if (eventIds) {
-        store.byEvent[record.eventId] = eventIds.filter((i: string) => i !== id)
-        if (store.byEvent[record.eventId].length === 0) delete store.byEvent[record.eventId]
+  await modifyJson<ImageStore>(STORE_PATH, EMPTY_STORE, (store) => {
+    for (const id of ids) {
+      const record = store.records[id]
+      if (record) {
+        const eventIds = store.byEvent[record.eventId]
+        if (eventIds) {
+          store.byEvent[record.eventId] = eventIds.filter((i: string) => i !== id)
+          if (store.byEvent[record.eventId].length === 0) delete store.byEvent[record.eventId]
+        }
+        delete store.records[id]
       }
-      delete store.records[id]
     }
-  }
 
-  store.byDate = store.byDate.filter((id: string) => !idSet.has(id))
-  await saveStore(store)
+    store.byDate = store.byDate.filter((id: string) => !idSet.has(id))
+    return store
+  })
 }
 
 export default router

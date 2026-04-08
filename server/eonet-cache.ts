@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express"
 import crypto from "crypto"
+import { retryAsync } from "./retry-async.js"
 
 interface CachedResponse {
   data: unknown
@@ -16,20 +17,24 @@ let cache: CachedResponse | null = null
 let fetchPromise: Promise<void> | null = null
 
 async function fetchOne(url: string): Promise<{ events: Array<Record<string, unknown>> } | null> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(url)
-      if (res.ok) return res.json()
-      if (res.status === 503 && attempt < 2) {
-        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)))
-        continue
+  try {
+    return await retryAsync(
+      async () => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`EONET ${res.status}`)
+        return res.json()
+      },
+      {
+        maxAttempts: 3,
+        pauseBase: 2,
+        pauseExponent: 2,
+        onFailure: (attempt, max, err) =>
+          console.warn(`EONET fetch attempt ${attempt}/${max} failed:`, err),
       }
-      return null
-    } catch {
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 4000))
-    }
+    )
+  } catch {
+    return null
   }
-  return null
 }
 
 async function refreshCache(): Promise<void> {

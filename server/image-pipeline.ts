@@ -152,7 +152,6 @@ export async function processImage(
 
   const baseProcessor = sharp(buffer, { limitInputPixels: MAX_PIXEL_BUDGET })
     .rotate()
-    .withMetadata({ density: TARGET_DPI })
     .removeAlpha()
 
   const original = await baseProcessor
@@ -191,6 +190,26 @@ export async function processImage(
   }
 }
 
+export const SAFE_VALIDATION_ERRORS = new Set([
+  "Filename contains null bytes",
+  "Filename contains dangerous extension",
+  "File is suspiciously small",
+  "Could not read image dimensions",
+  "Image has extreme aspect ratio",
+  "SVG and GIF files are not accepted",
+  "Suspected decompression bomb",
+  "Image re-encoding produced invalid output",
+  "Only JPEG, PNG, and WebP images are allowed",
+  "File too small to validate",
+  "File signature does not match any allowed image format",
+  ...Array.from(ALLOWED_EXTENSIONS).map((ext) => `Extension ${ext} is not allowed`),
+  ...Array.from(ALLOWED_MIME_TYPES).map((mime) => `MIME type ${mime} is not allowed`),
+  `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
+  `Image dimensions exceed ${MAX_DIMENSION}px limit`,
+  `Image dimensions below ${MIN_DIMENSION}px minimum`,
+  `Image exceeds ${MAX_PIXEL_BUDGET} pixel budget`,
+])
+
 const UNSAFE_THRESHOLD = new Set(["LIKELY", "VERY_LIKELY"])
 
 let visionClient: InstanceType<typeof import("@google-cloud/vision").ImageAnnotatorClient> | null = null
@@ -213,7 +232,7 @@ export async function moderateImage(
     const annotation = result.safeSearchAnnotation
 
     if (!annotation) {
-      return { safe: true, flags: [] }
+      return { safe: false, flags: ["no_annotation"] }
     }
 
     const flags: string[] = []

@@ -1,20 +1,19 @@
-const PERSPECTIVE_API_KEY = process.env.PERSPECTIVE_API_KEY || ""
-const TOXICITY_THRESHOLD = 0.7
+import sanitizeHtml from "sanitize-html"
 
-interface PerspectiveScore {
-  value: number
-}
+const CONFIDENCE_THRESHOLD = 0.7
 
-interface PerspectiveResponse {
-  attributeScores: {
-    TOXICITY?: { summaryScore: PerspectiveScore }
-    SEVERE_TOXICITY?: { summaryScore: PerspectiveScore }
-    INSULT?: { summaryScore: PerspectiveScore }
-    PROFANITY?: { summaryScore: PerspectiveScore }
-    THREAT?: { summaryScore: PerspectiveScore }
-    IDENTITY_ATTACK?: { summaryScore: PerspectiveScore }
-  }
-}
+const BLOCKED_CATEGORIES = new Set([
+  "Toxic",
+  "Derogatory",
+  "Violent",
+  "Sexual",
+  "Insult",
+  "Profanity",
+  "Death, Harm & Tragedy",
+  "Firearms & Weapons",
+  "Public Safety",
+  "Illicit Drugs",
+])
 
 export interface ModerationResult {
   safe: boolean
@@ -22,87 +21,75 @@ export interface ModerationResult {
   flags: string[]
 }
 
-export async function moderateText(text: string): Promise<ModerationResult> {
-  if (!PERSPECTIVE_API_KEY) {
-    return { safe: true, toxicityScore: 0, flags: [] }
-  }
+let nlClient: InstanceType<typeof import("@google-cloud/language").LanguageServiceClient> | null = null
 
-  if (!text.trim() || text.trim().length < 3) {
+async function getClient() {
+  if (!nlClient) {
+    const { LanguageServiceClient } = await import("@google-cloud/language")
+    nlClient = new LanguageServiceClient()
+  }
+  return nlClient
+}
+
+export async function moderateText(text: unknown): Promise<ModerationResult> {
+  if (typeof text !== "string" || !text.trim() || text.trim().length < 3) {
     return { safe: true, toxicityScore: 0, flags: [] }
   }
 
   try {
-    const res = await fetch(
-      `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${PERSPECTIVE_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          comment: { text: text.slice(0, 3000) },
-          languages: ["en"],
-          requestedAttributes: {
-            TOXICITY: {},
-            SEVERE_TOXICITY: {},
-            INSULT: {},
-            PROFANITY: {},
-            THREAT: {},
-            IDENTITY_ATTACK: {},
-          },
-        }),
-      }
-    )
+    const client = await getClient()
+    const [result] = await client.moderateText({
+      document: {
+        content: text.slice(0, 10_000),
+        type: "PLAIN_TEXT" as const,
+      },
+    })
 
-    if (!res.ok) {
-      console.error("Perspective API error:", res.status)
-      return { safe: false, toxicityScore: 1, flags: ["moderation_error"] }
-    }
-
-    const data: PerspectiveResponse = await res.json()
-    const scores = data.attributeScores
+    const categories = result.moderationCategories || []
     const flags: string[] = []
+    let maxScore = 0
 
-    const checks = {
-      toxicity: scores.TOXICITY?.summaryScore.value || 0,
-      severe_toxicity: scores.SEVERE_TOXICITY?.summaryScore.value || 0,
-      insult: scores.INSULT?.summaryScore.value || 0,
-      profanity: scores.PROFANITY?.summaryScore.value || 0,
-      threat: scores.THREAT?.summaryScore.value || 0,
-      identity_attack: scores.IDENTITY_ATTACK?.summaryScore.value || 0,
-    }
+    for (const cat of categories) {
+      const name = cat.name || ""
+      const confidence = cat.confidence || 0
 
-    const maxScore = Math.max(...Object.values(checks))
-
-    for (const [category, score] of Object.entries(checks)) {
-      if (score >= TOXICITY_THRESHOLD) flags.push(category)
+      if (confidence > maxScore) maxScore = confidence
+      if (confidence >= CONFIDENCE_THRESHOLD && BLOCKED_CATEGORIES.has(name)) {
+        flags.push(name)
+      }
     }
 
     return { safe: flags.length === 0, toxicityScore: maxScore, flags }
   } catch (err) {
-    console.error("Perspective API error:", err)
+    console.error("Cloud NL moderation error:", err)
     return { safe: false, toxicityScore: 1, flags: ["moderation_error"] }
   }
 }
 
-const DANGEROUS_TAG = /<\/?(?!(?:p|br|b|i|em|strong|ul|ol|li|h[1-6]|blockquote|code|pre|a)\b)[a-z][^>]*>/gi
-
-export function sanitizeWikiContent(input: string): string {
-  return input
-    .slice(0, 10_000)
-    .replace(DANGEROUS_TAG, "")
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/on\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/javascript\s*:/gi, "")
-    .replace(/vbscript\s*:/gi, "")
-    .replace(/data\s{0,10}:\s{0,10}text\/html/gi, "")
-    .replace(/expression\s{0,10}\(/gi, "")
-    .replace(/url\s{0,10}\(\s{0,10}['"]?\s{0,10}javascript/gi, "")
-    .trim()
+const WIKI_CONTENT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: [
+    "p", "br", "b", "i", "em", "strong",
+    "ul", "ol", "li",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "blockquote", "code", "pre",
+    "a",
+  ],
+  allowedAttributes: {
+    a: ["href"],
+  },
+  allowedSchemes: ["https", "http"],
+  disallowedTagsMode: "discard",
 }
 
-export function sanitizeWikiTitle(input: string): string {
-  return input
-    .slice(0, 200)
-    .replace(/<[^>]*>/g, "")
-    .replace(/[<>&"']/g, "")
-    .trim()
+export function sanitizeWikiContent(input: unknown): string {
+  if (typeof input !== "string") return ""
+  return sanitizeHtml(input.slice(0, 10_000), WIKI_CONTENT_SANITIZE_OPTIONS).trim()
+}
+
+export function sanitizeWikiTitle(input: unknown): string {
+  if (typeof input !== "string") return ""
+  return sanitizeHtml(input.slice(0, 200), {
+    allowedTags: [],
+    allowedAttributes: {},
+  }).trim()
 }

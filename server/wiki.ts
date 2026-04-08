@@ -4,6 +4,7 @@ import {
   getSections,
   getSectionContent,
   getRevisionHistory,
+  getRevision,
   createSection,
   editSection,
   revertSection,
@@ -58,6 +59,28 @@ router.get("/:eventId/:sectionId/history", async (req: AuthRequest, res: Respons
   res.json(approved)
 })
 
+router.get("/:eventId/:sectionId/revision/:revisionId/status", async (req: AuthRequest, res: Response) => {
+  const eventId = param(req.params.eventId)
+  const sectionId = param(req.params.sectionId)
+  const revisionId = param(req.params.revisionId)
+  if (!validateId(eventId) || !validateId(sectionId) || !validateId(revisionId)) {
+    res.status(400).json({ error: "Invalid ID" })
+    return
+  }
+
+  const revision = await getRevision(eventId, sectionId, revisionId)
+  if (!revision) {
+    res.status(404).json({ error: "Revision not found" })
+    return
+  }
+
+  res.json({
+    status: revision.status,
+    moderationFlags: revision.moderationFlags,
+    toxicityScore: revision.toxicityScore,
+  })
+})
+
 router.post("/:eventId", requireAuth, async (req: AuthRequest, res: Response) => {
   const eventId = param(req.params.eventId)
   if (!validateId(eventId)) {
@@ -65,8 +88,8 @@ router.post("/:eventId", requireAuth, async (req: AuthRequest, res: Response) =>
     return
   }
 
-  const title = sanitizeWikiTitle(req.body.title || "")
-  const content = sanitizeWikiContent(req.body.content || "")
+  const title = sanitizeWikiTitle(req.body.title)
+  const content = sanitizeWikiContent(req.body.content)
 
   if (!title || title.length < 2) {
     res.status(400).json({ error: "Title must be at least 2 characters" })
@@ -107,7 +130,7 @@ router.put("/:eventId/:sectionId", requireAuth, async (req: AuthRequest, res: Re
     return
   }
 
-  const content = sanitizeWikiContent(req.body.content || "")
+  const content = sanitizeWikiContent(req.body.content)
   if (!content || content.length < 10) {
     res.status(400).json({ error: "Content must be at least 10 characters" })
     return
@@ -196,15 +219,15 @@ async function runModeration(
     ])
 
     if (result.safe) {
-      await approveRevision(eventId, sectionId, revisionId, result.toxicityScore)
+      await approveRevision(eventId, sectionId, revisionId, result.toxicityScore, result.flags)
       console.log(`Wiki revision ${revisionId} approved (score: ${result.toxicityScore.toFixed(2)})`)
     } else {
-      await rejectRevision(eventId, sectionId, revisionId, result.toxicityScore)
+      await rejectRevision(eventId, sectionId, revisionId, result.toxicityScore, result.flags)
       console.log(`Wiki revision ${revisionId} rejected: ${result.flags.join(", ")}`)
     }
   } catch (err) {
     console.error(`Wiki moderation failed for ${revisionId}, auto-rejecting:`, err)
-    await rejectRevision(eventId, sectionId, revisionId, 1).catch(() => {})
+    await rejectRevision(eventId, sectionId, revisionId, 1, ["moderation_error"]).catch(() => {})
   }
 }
 

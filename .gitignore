@@ -22,7 +22,8 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
+.env*
+!.env.example
 server/uploads/*
 !server/uploads/.gitkeep
 server/data/*.json

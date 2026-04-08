@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react"
 import uFuzzy from "@leeoniya/ufuzzy"
 import type { EONETEvent } from "@/types"
+import { SEARCH_DEBOUNCE_MS, MIN_SEARCH_QUERY_LENGTH } from "@/lib/constants"
 
 const uf = new uFuzzy({ intraMode: 1, intraIns: 1 })
 
@@ -13,11 +14,11 @@ export function useFuzzySearch(
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (query.length < MIN_SEARCH_QUERY_LENGTH) {
       setDebouncedQuery(query)
       return
     }
-    timerRef.current = setTimeout(() => setDebouncedQuery(query), 150)
+    timerRef.current = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timerRef.current)
   }, [query])
 

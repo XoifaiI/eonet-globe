@@ -3,29 +3,29 @@ import express from "express"
 import cors from "cors"
 import path from "path"
 import rateLimit from "express-rate-limit"
+import { MS_PER_HOUR, DEFAULT_PORT, DEV_ORIGINS, RATE_LIMITS, JSON_BODY_LIMIT } from "./constants.js"
 import authRouter from "./auth.js"
+import type { AuthRequest } from "./auth.js"
 import imagesRouter, { getExpiredImages, removeImageRecords } from "./images.js"
 import eonetRouter from "./eonet-cache.js"
 import wikiRouter from "./wiki.js"
 import { deleteImages } from "./storage.js"
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || DEFAULT_PORT
 const MAX_AGE_DAYS = Number(process.env.IMAGE_MAX_AGE_DAYS) || 60
-import { MS_PER_HOUR } from "./constants.js"
-
 const CLEANUP_INTERVAL = 6 * MS_PER_HOUR
 const IS_PROD = process.env.NODE_ENV === "production"
 
 const ALLOWED_ORIGINS = new Set(
-  [
-    "http://localhost:5173",
-    "http://localhost:4173",
-    process.env.CORS_ORIGIN,
-  ].filter(Boolean)
+  [...DEV_ORIGINS, process.env.CORS_ORIGIN].filter(Boolean)
 )
 
-app.set("trust proxy", 1)
+const trustProxy = process.env.TRUST_PROXY
+if (trustProxy) {
+  const parsed = Number(trustProxy)
+  app.set("trust proxy", Number.isFinite(parsed) ? parsed : trustProxy)
+}
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -38,7 +38,7 @@ app.use(cors({
   credentials: true,
 }))
 
-app.use(express.json({ limit: "1mb" }))
+app.use(express.json({ limit: JSON_BODY_LIMIT }))
 app.disable("x-powered-by")
 
 app.use((_req, res, next) => {
@@ -46,43 +46,32 @@ app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY")
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+  if (IS_PROD) {
+    res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+  }
   next()
 })
 
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, try again later" },
-})
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many auth attempts" },
-})
-
+const apiLimiter = rateLimit({ ...RATE_LIMITS.api, standardHeaders: true, legacyHeaders: false, message: { error: "Too many requests" } })
+const authLimiter = rateLimit({ ...RATE_LIMITS.auth, standardHeaders: true, legacyHeaders: false, message: { error: "Too many auth attempts" } })
 const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
+  ...RATE_LIMITS.upload,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Upload limit reached, try again in a minute" },
+  message: { error: "Upload limit reached" },
+  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
+})
+const wikiWriteLimiter = rateLimit({
+  ...RATE_LIMITS.wiki,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many wiki edits" },
+  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
 })
 
 app.use("/api", apiLimiter)
 app.use("/api/auth", authLimiter)
-const wikiWriteLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many wiki edits, try again in a minute" },
-})
-
 app.use("/api/images/:eventId", (req, _res, next) => {
   if (req.method === "POST") return uploadLimiter(req, _res, next)
   next()
@@ -109,14 +98,25 @@ if (IS_PROD) {
     immutable: true,
   }))
 
-  app.use(express.static(distPath, {
-    maxAge: 0,
-    index: false,
-  }))
+  app.use(express.static(distPath, { maxAge: 0, index: false }))
 
   app.get("{*path}", (_req, res) => {
     res.setHeader("Cache-Control", "no-cache")
     res.setHeader("Content-Type", "text/html; charset=utf-8")
+    res.setHeader(
+      "Content-Security-Policy",
+      [
+        "default-src 'self'",
+        "script-src 'self' https://accounts.google.com",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' https://accounts.google.com",
+        "frame-src https://accounts.google.com",
+        "font-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+      ].join("; ")
+    )
     res.sendFile(path.join(distPath, "index.html"))
   })
 }
@@ -125,10 +125,8 @@ async function runCleanup() {
   try {
     const expired = await getExpiredImages(MAX_AGE_DAYS)
     if (expired.length === 0) return
-
     await deleteImages(expired.map((e) => e.filename))
     await removeImageRecords(expired.map((e) => e.id))
-
     console.log(`Cleanup: removed ${expired.length} images older than ${MAX_AGE_DAYS} days`)
   } catch (err) {
     console.error("Cleanup failed:", err)

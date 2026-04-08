@@ -1,5 +1,5 @@
 import type { EONETEvent } from "@/types"
-import { DEFAULT_CATEGORY_COLOR, MS_PER_DAY } from "@/lib/constants"
+import { DEFAULT_CATEGORY_COLOR, MS_PER_DAY, MS_PER_HOUR } from "@/lib/constants"
 import type { LucideIcon } from "lucide-react"
 import {
   Flame,
@@ -117,10 +117,10 @@ export function formatEventDate(event: EONETEvent): string {
 
 export function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
-  const hours = Math.floor(diff / 3600000)
+  const hours = Math.floor(diff / MS_PER_HOUR)
   if (hours < 1) return "Just now"
   if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
+  const days = Math.floor(diff / MS_PER_DAY)
   if (days < 7) return `${days}d ago`
   return `${Math.floor(days / 7)}w ago`
 }
