@@ -191,18 +191,20 @@ export default function EventDetailDialog() {
                 </span>
               )}
               {coords && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(
                       `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`
                     )
                   }}
-                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                  className="h-auto p-0 gap-1 text-muted-foreground hover:text-foreground"
                   title="Copy coordinates"
                 >
                   <Copy className="h-3 w-3" />
                   {coords[1].toFixed(3)}, {coords[0].toFixed(3)}
-                </button>
+                </Button>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -342,10 +344,11 @@ export default function EventDetailDialog() {
                     {!loadingImages && images.length > 0 && (
                       <div className="grid grid-cols-4 gap-2">
                         {images.map((img) => (
-                            <button
+                            <Button
                               key={img.id}
+                              variant="ghost"
                               onClick={() => setPreviewImage(img)}
-                              className="group relative rounded-lg overflow-hidden border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                              className="group relative rounded-lg overflow-hidden border border-border/50 h-auto p-0 aspect-square"
                             >
                               <img
                                 src={`/api/images/file/${encodeURIComponent(img.filename)}`}
@@ -362,7 +365,7 @@ export default function EventDetailDialog() {
                                   {img.username} &middot; {timeAgo(img.createdAt)}
                                 </p>
                               </div>
-                            </button>
+                            </Button>
                         ))}
                       </div>
                     )}

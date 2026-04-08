@@ -1,6 +1,7 @@
 import { useEffect, useId, useCallback, useMemo } from "react"
 import { useMap } from "@/components/ui/map"
 import { useEventStore } from "@/store/event-store"
+import { useStyleReady } from "@/store/style-store"
 import { getLatestCoordinates, formatEventDate, CATEGORY_COLORS } from "@/lib/eonet"
 import { DEFAULT_CATEGORY_COLOR } from "@/lib/constants"
 import type { EONETEvent } from "@/types"
@@ -35,6 +36,8 @@ export default function EventClusterLayer() {
   const categoryFilter = useEventStore((s) => s.categoryFilter)
   const viewMode = useEventStore((s) => s.viewMode)
   const { map, isLoaded } = useMap()
+  const styleReady = useStyleReady((s) => s.ready)
+  const styleVersion = useStyleReady((s) => s.version)
   const id = useId()
 
   const src = `eonet-s-${id}`
@@ -49,7 +52,7 @@ export default function EventClusterLayer() {
   }, [events, categoryFilter])
 
   useEffect(() => {
-    if (!isLoaded || !map) return
+    if (!isLoaded || !map || !styleReady) return
 
     const geojson = eventsToGeoJSON(filteredEvents)
 
@@ -165,7 +168,7 @@ export default function EventClusterLayer() {
         if (map.getSource(src)) map.removeSource(src)
       } catch { /* */ }
     }
-  }, [isLoaded, map, filteredEvents, viewMode, src, pointOuter, pointInner, pointDot, heatLayer])
+  }, [isLoaded, map, styleReady, styleVersion, filteredEvents, viewMode, src, pointOuter, pointInner, pointDot, heatLayer])
 
   const handlePointClick = useCallback(
     (e: MapLibreGL.MapMouseEvent & { features?: MapLibreGL.MapGeoJSONFeature[] }) => {

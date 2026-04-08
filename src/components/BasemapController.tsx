@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useMap } from "@/components/ui/map"
 import { useEventStore } from "@/store/event-store"
-import { create } from "zustand"
+import { useStyleReady } from "@/store/style-store"
 
 const TERRAIN_SOURCE = "terrain-dem"
 const HILLSHADE_LAYER = "terrain-hillshade"
@@ -78,11 +78,6 @@ const STYLES = {
     },
   },
 }
-
-export const useStyleReady = create<{ ready: boolean; version: number }>(() => ({
-  ready: true,
-  version: 0,
-}))
 
 export default function BasemapController() {
   const basemap = useEventStore((s) => s.basemap)

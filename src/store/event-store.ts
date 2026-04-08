@@ -16,6 +16,10 @@ interface EventState {
   detailOpen: boolean
   viewMode: ViewMode
   basemap: BasemapStyle
+  sidebarOpen: boolean
+  filterOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+  setFilterOpen: (open: boolean) => void
   setEvents: (events: EONETEvent[]) => void
   setSelectedEvent: (event: EONETEvent | null) => void
   setLoading: (loading: boolean) => void
@@ -38,6 +42,10 @@ export const useEventStore = create<EventState>((set) => ({
   detailOpen: false,
   viewMode: "points" as ViewMode,
   basemap: "dark" as BasemapStyle,
+  sidebarOpen: false,
+  filterOpen: false,
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+  setFilterOpen: (filterOpen) => set({ filterOpen }),
   setEvents: (events) => {
     const eventsById = new globalThis.Map<string, EONETEvent>()
     for (const e of events) eventsById.set(e.id, e)

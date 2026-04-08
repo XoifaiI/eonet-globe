@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useEventStore } from "@/store/event-store"
 import { useAuthStore } from "@/store/auth-store"
-import { useStyleReady } from "@/components/BasemapController"
+import { useStyleReady } from "@/store/style-store"
 import {
   getCategoryColor,
   getCategoryEmoji,
@@ -38,6 +38,7 @@ export default function SelectedEventPopup() {
   const styleReady = useStyleReady((s) => s.ready)
   const styleVersion = useStyleReady((s) => s.version)
   const user = useAuthStore((s) => s.user)
+  const setDetailOpen = useEventStore((s) => s.setDetailOpen)
 
   if (!selectedEvent) return null
 
@@ -187,7 +188,7 @@ export default function SelectedEventPopup() {
             )}
           </CardContent>
           <CardFooter>
-            <Button size="sm" className="w-full text-[10px] h-7" onClick={() => useEventStore.getState().setDetailOpen(true)}>
+            <Button size="sm" className="w-full text-[10px] h-7" onClick={() => setDetailOpen(true)}>
               {user ? "View Details & Upload Photos" : "View Full Details"}
             </Button>
           </CardFooter>

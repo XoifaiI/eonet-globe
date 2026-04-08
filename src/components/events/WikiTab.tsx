@@ -277,7 +277,7 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                     {revisions.map((rev, i) => (
                       <HoverCard key={rev.id}>
                         <HoverCardTrigger>
-                          <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/20 cursor-pointer">
+                          <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto w-full justify-start rounded-none">
                             <Avatar className="h-5 w-5">
                               <AvatarFallback className="text-[8px]">
                                 {rev.authorName.charAt(0).toUpperCase()}
@@ -317,7 +317,7 @@ export default function WikiTab({ eventId }: { eventId: string }) {
                                 </Button>
                               )}
                             </div>
-                          </div>
+                          </Button>
                         </HoverCardTrigger>
                         <HoverCardContent side="left" className="w-80 text-xs">
                           <p className="font-medium mb-1">Preview</p>

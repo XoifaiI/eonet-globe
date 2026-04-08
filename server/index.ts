@@ -2,7 +2,7 @@ import "dotenv/config"
 import express from "express"
 import cors from "cors"
 import path from "path"
-import rateLimit from "express-rate-limit"
+import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import { MS_PER_HOUR, DEFAULT_PORT, DEV_ORIGINS, RATE_LIMITS, JSON_BODY_LIMIT } from "./constants.js"
 import authRouter from "./auth.js"
 import type { AuthRequest } from "./auth.js"
@@ -61,14 +61,14 @@ const uploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Upload limit reached" },
-  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
+  keyGenerator: (req) => (req as AuthRequest).userId || ipKeyGenerator(req.ip || "unknown"),
 })
 const wikiWriteLimiter = rateLimit({
   ...RATE_LIMITS.wiki,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many wiki edits" },
-  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
+  keyGenerator: (req) => (req as AuthRequest).userId || ipKeyGenerator(req.ip || "unknown"),
 })
 
 app.use("/api", apiLimiter)

@@ -1,4 +1,4 @@
-import { useMemo, useRef, memo, useCallback, startTransition } from "react"
+import { useMemo, useRef, memo, useCallback, startTransition, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { useEventStore } from "@/store/event-store"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useFuzzySearch } from "@/hooks/use-fuzzy-search"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getCategoryIcon, formatEventDate, CATEGORY_COLORS } from "@/lib/eonet"
 import { DEFAULT_CATEGORY_COLOR } from "@/lib/constants"
 import AuthFooter from "@/components/sidebar/AuthFooter"
-import { Globe, Search, X, AlertCircle } from "lucide-react"
+import { Globe, Search, X, AlertCircle, List } from "lucide-react"
 import type { EONETEvent } from "@/types"
 
 const ITEM_HEIGHT = 40
@@ -26,20 +28,21 @@ const SidebarItem = memo(function SidebarItem({
   const color = CATEGORY_COLORS[event.categories[0]?.id || ""] || DEFAULT_CATEGORY_COLOR
 
   return (
-    <button
+    <Button
+      variant={isSelected ? "default" : "ghost"}
       onClick={onSelect}
-      className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors duration-100 flex items-center gap-2 cursor-pointer ${
-        isSelected ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted/60"
+      className={`w-full justify-start px-2 py-1.5 h-auto text-xs gap-2 ${
+        isSelected ? "shadow-sm" : "hover:bg-muted/60"
       }`}
     >
       <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: isSelected ? "rgba(255,255,255,0.2)" : `${color}15` }}>
         <Icon className="h-3 w-3" style={{ color: isSelected ? "currentColor" : color }} />
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 text-left">
         <span className="truncate block leading-tight">{event.title}</span>
         <span className={`text-[10px] ${isSelected ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{formatEventDate(event)}</span>
       </div>
-    </button>
+    </Button>
   )
 })
 
@@ -63,7 +66,7 @@ function VirtualEventList({ events, selectedId, onSelect }: { events: EONETEvent
   )
 }
 
-export default function EventSidebar() {
+function SidebarContent({ onSelectEvent }: { onSelectEvent?: () => void }) {
   const events = useEventStore((s) => s.events)
   const selectedId = useEventStore((s) => s.selectedEvent?.id ?? null)
   const setSelectedEvent = useEventStore((s) => s.setSelectedEvent)
@@ -92,30 +95,14 @@ export default function EventSidebar() {
         const current = state.selectedEvent?.id
         const next = current === eventId ? null : state.eventsById.get(eventId) ?? null
         setSelectedEvent(next)
+        if (next && onSelectEvent) onSelectEvent()
       })
     },
-    [setSelectedEvent]
+    [setSelectedEvent, onSelectEvent]
   )
 
   return (
-    <Card size="sm" className="absolute top-4 left-4 z-10 w-80 max-h-[calc(100vh-2rem)] flex flex-col bg-background/95 backdrop-blur-md shadow-2xl">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Globe className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <CardTitle>EONET Live</CardTitle>
-            <CardDescription className="text-[10px]">NASA Earth Observatory Natural Events</CardDescription>
-          </div>
-        </div>
-        {!loading && (
-          <CardAction>
-            <Badge variant="outline" className="text-[10px] h-5 font-mono tabular-nums">{events.length}</Badge>
-          </CardAction>
-        )}
-      </CardHeader>
-
+    <>
       <CardContent className="flex-1 overflow-hidden flex flex-col gap-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -165,6 +152,80 @@ export default function EventSidebar() {
       </CardContent>
 
       <AuthFooter />
+    </>
+  )
+}
+
+export default function EventSidebar() {
+  const isMobile = useIsMobile()
+  const events = useEventStore((s) => s.events)
+  const loading = useEventStore((s) => s.loading)
+  const selectedEvent = useEventStore((s) => s.selectedEvent)
+  const mobileOpen = useEventStore((s) => s.sidebarOpen)
+  const setSidebarOpen = useEventStore((s) => s.setSidebarOpen)
+
+  useEffect(() => {
+    if (isMobile && selectedEvent) {
+      setSidebarOpen(false)
+    }
+  }, [isMobile, selectedEvent, setSidebarOpen])
+
+  if (isMobile) {
+    return (
+      <>
+        {!selectedEvent && (
+          <Button
+            size="icon"
+            variant="secondary"
+            className="absolute top-4 left-4 z-10 h-10 w-10 bg-background/95 backdrop-blur-md shadow-2xl"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        )}
+        <Drawer direction="left" open={mobileOpen} onOpenChange={setSidebarOpen}>
+          <DrawerContent className="h-full w-[85vw] max-w-80 flex flex-col">
+            <DrawerHeader className="pb-0">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Globe className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <DrawerTitle className="text-sm">EONET Live</DrawerTitle>
+                  <p className="text-[10px] text-muted-foreground">NASA Earth Observatory Natural Events</p>
+                </div>
+                {!loading && (
+                  <Badge variant="outline" className="text-[10px] h-5 font-mono tabular-nums ml-auto">{events.length}</Badge>
+                )}
+              </div>
+            </DrawerHeader>
+            <SidebarContent onSelectEvent={() => setSidebarOpen(false)} />
+          </DrawerContent>
+        </Drawer>
+      </>
+    )
+  }
+
+  return (
+    <Card size="sm" className="absolute top-4 left-4 z-10 w-80 max-h-[calc(100vh-2rem)] flex flex-col bg-background/95 backdrop-blur-md shadow-2xl">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Globe className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <CardTitle>EONET Live</CardTitle>
+            <CardDescription className="text-[10px]">NASA Earth Observatory Natural Events</CardDescription>
+          </div>
+        </div>
+        {!loading && (
+          <CardAction>
+            <Badge variant="outline" className="text-[10px] h-5 font-mono tabular-nums">{events.length}</Badge>
+          </CardAction>
+        )}
+      </CardHeader>
+
+      <SidebarContent />
     </Card>
   )
 }
