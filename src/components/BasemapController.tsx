@@ -4,6 +4,7 @@ import { useEventStore } from "@/store/event-store";
 import { useStyleReady } from "@/store/style-store";
 
 const TERRAIN_SOURCE = "terrain-dem";
+const HILLSHADE_SOURCE = "hillshade-dem";
 const HILLSHADE_LAYER = "terrain-hillshade";
 
 const STYLES = {
@@ -52,6 +53,15 @@ const STYLES = {
         maxzoom: 15,
         encoding: "terrarium" as const,
       },
+      [HILLSHADE_SOURCE]: {
+        type: "raster-dem" as const,
+        tiles: [
+          "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+        ],
+        tileSize: 256,
+        maxzoom: 15,
+        encoding: "terrarium" as const,
+      },
     },
     layers: [
       {
@@ -64,7 +74,7 @@ const STYLES = {
       {
         id: HILLSHADE_LAYER,
         type: "hillshade" as const,
-        source: TERRAIN_SOURCE,
+        source: HILLSHADE_SOURCE,
         paint: {
           "hillshade-shadow-color": "#000000",
           "hillshade-illumination-anchor": "viewport" as const,
