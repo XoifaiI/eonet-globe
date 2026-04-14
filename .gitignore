@@ -8,8 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+.next
+out
 *.local
 
 .vscode/*
@@ -24,6 +24,6 @@ dist-ssr
 
 .env*
 !.env.example
-server/uploads/*
-!server/uploads/.gitkeep
-server/data/*.json
+
+# TypeScript
+*.tsbuildinfo

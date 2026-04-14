@@ -1,7 +1,6 @@
 node_modules
-dist
+.next
 .env
-server/data
-server/uploads
+.env.local
 .git
 *.md

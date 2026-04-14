@@ -46,11 +46,11 @@ On smaller screens, the sidebar collapses into a hamburger menu that opens as a 
 
 ## Tech Stack
 
-The frontend is built with React 19 and Vite, using Tailwind CSS v4 for styling and shadcn/ui for the component library. Map rendering is handled by MapLibre GL. State management uses Zustand, and the event list is virtualized with TanStack Virtual to keep scrolling smooth even with thousands of events.
+The app is built on Next.js with the App Router, React 19, Tailwind CSS v4, and shadcn/ui. Map rendering is handled by MapLibre GL. State management uses Zustand, and the event list is virtualized with TanStack Virtual to keep scrolling smooth even with thousands of events.
 
-The backend runs on Express 5 with TypeScript, executed via tsx. Authentication is handled through Google Identity Services with JWT tokens signed and verified using the jose library. Images are processed with Sharp and stored in Google Cloud Storage with Zstandard compression. Rate limiting uses express-rate-limit with separate tiers for general API access, auth attempts, uploads, and wiki edits.
+The backend lives in Next.js Route Handlers under `app/api`. Authentication is handled through Google Identity Services with JWT tokens signed and verified using the jose library. Images are processed with Sharp and stored in Google Cloud Storage with Zstandard compression. Rate limiting is implemented with an in-memory bucket store applied via Next.js middleware, with separate tiers for general API access, auth attempts, uploads, and wiki edits. A periodic cleanup job registered via `instrumentation.ts` removes expired images.
 
-The whole thing deploys to Google Cloud Run from a multi-stage Dockerfile. The build stage compiles the Vite frontend, and the production stage runs only the server with production dependencies.
+The whole thing deploys to Google Cloud Run from a multi-stage Dockerfile.
 
 ## Running Locally
 
@@ -59,19 +59,28 @@ npm install
 npm run dev
 ```
 
-This starts both the Vite dev server and the Express backend concurrently. You will need a `.env` file with your Google OAuth client ID and optionally a GCS bucket name for image storage.
+This starts the Next.js dev server on port 3000. You will need a `.env.local` file with your Google OAuth client ID and optionally a GCS bucket name for image storage.
 
 ## Environment Variables
 
 | Variable | Purpose |
 |---|---|
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID (baked into frontend at build time) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client ID (exposed to the browser at build time) |
 | `GOOGLE_CLIENT_ID` | Same client ID, used server-side for token verification |
 | `JWT_SECRET` | Secret for signing auth tokens (min 32 characters) |
 | `GCS_BUCKET` | Google Cloud Storage bucket for images |
 | `ENABLE_MODERATION` | Set to `false` to disable image moderation locally |
 | `IMAGE_MAX_AGE_DAYS` | Days before uploaded images expire and get cleaned up |
-| `CORS_ORIGIN` | Allowed CORS origin for production |
+
+## Deployment notes
+
+The rate limiter, the EONET response cache, the decoded-image LRU, and the image-cleanup `setInterval` all live in per-process memory. This is intentional for a small deployment but means:
+
+- Rate limits count per instance. A client hitting two Cloud Run instances can send `2 × max` requests per window. Set `--min-instances=1 --max-instances=1` (or a low `--concurrency` with a single instance) if you want strict enforcement, or put a shared limiter (Redis / Memorystore) in front.
+- The EONET cache warms per instance — each fresh instance does its own upstream fetch.
+- The cleanup interval fires once per instance. Multiple instances doing cleanup is safe (GCS atomic writes with generation preconditions handle the race) but wasteful. For real scale, move cleanup to Cloud Scheduler → Cloud Run job.
+
+Secrets (`JWT_SECRET`, `GOOGLE_CLIENT_ID`) should be wired through Google Secret Manager with `gcloud run deploy --set-secrets=JWT_SECRET=jwt-secret:latest,GOOGLE_CLIENT_ID=google-client-id:latest`, not baked into the image.
 
 ## License
 

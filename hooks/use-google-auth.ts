@@ -8,7 +8,7 @@ import {
 } from "@/lib/constants";
 import type { GoogleCredentialResponse } from "@/types";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 declare global {
   interface Window {
@@ -57,7 +57,7 @@ export function useGoogleAuth(
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
       console.error(
-        "VITE_GOOGLE_CLIENT_ID is not set, Google Sign-In disabled",
+        "NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set, Google Sign-In disabled",
       );
       return;
     }
